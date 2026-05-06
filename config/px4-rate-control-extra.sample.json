@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "rate_control": {
+    "extra": {
+      "MC_PITCHRATE_FF": 0.0,
+      "MC_PITCHRATE_K": 1.0,
+      "MC_PR_INT_LIM": 0.3,
+      "MC_ROLLRATE_FF": 0.0,
+      "MC_ROLLRATE_K": 1.0,
+      "MC_RR_INT_LIM": 0.3,
+      "MC_YAWRATE_FF": 0.0,
+      "MC_YAWRATE_K": 1.0,
+      "MC_YR_INT_LIM": 0.2
+    }
+  }
+}

@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+from pathlib import Path
+
+
+PX4_GIT_COMMIT = "a1726d316a941af9524f6279eb293a713d8fdcac"
+PX4_GIT_DESCRIBE = "v1.17.0-alpha1-1702-ga1726d316a"
+
+
+def parse_hakoniwa_txt(path: Path) -> dict[str, float]:
+    values: dict[str, float] = {}
+
+    for lineno, raw_line in enumerate(path.read_text().splitlines(), start=1):
+        line = raw_line.strip()
+
+        if not line or line.startswith("#"):
+            continue
+
+        parts = line.split()
+
+        if len(parts) != 2:
+            raise ValueError(f"invalid parameter line at {path}:{lineno}: {raw_line}")
+
+        key, value = parts
+        values[key] = float(value)
+
+    return values
+
+
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text())
+
+
+def require(params: dict[str, float], key: str) -> float:
+    if key not in params:
+        raise KeyError(f"missing required Hakoniwa parameter: {key}")
+    return float(params[key])
+
+
+def get_optional(params: dict[str, float], key: str, default: float) -> float:
+    return float(params.get(key, default))
+
+
+def compose_rate_control_parameters(
+    hakoniwa_params: dict[str, float],
+    px4_extra: dict[str, float],
+    expand_gain_k: bool,
+    allow_torque_limit_heuristic: bool,
+) -> dict[str, float]:
+    parameters = {
+        "MC_ROLLRATE_P": require(hakoniwa_params, "PID_ROLL_RATE_Kp"),
+        "MC_ROLLRATE_I": require(hakoniwa_params, "PID_ROLL_RATE_Ki"),
+        "MC_ROLLRATE_D": require(hakoniwa_params, "PID_ROLL_RATE_Kd"),
+        "MC_PITCHRATE_P": require(hakoniwa_params, "PID_PITCH_RATE_Kp"),
+        "MC_PITCHRATE_I": require(hakoniwa_params, "PID_PITCH_RATE_Ki"),
+        "MC_PITCHRATE_D": require(hakoniwa_params, "PID_PITCH_RATE_Kd"),
+        "MC_YAWRATE_P": require(hakoniwa_params, "PID_YAW_RATE_Kp"),
+        "MC_YAWRATE_I": require(hakoniwa_params, "PID_YAW_RATE_Ki"),
+        "MC_YAWRATE_D": require(hakoniwa_params, "PID_YAW_RATE_Kd"),
+        "MC_ROLLRATE_FF": get_optional(px4_extra, "MC_ROLLRATE_FF", 0.0),
+        "MC_PITCHRATE_FF": get_optional(px4_extra, "MC_PITCHRATE_FF", 0.0),
+        "MC_YAWRATE_FF": get_optional(px4_extra, "MC_YAWRATE_FF", 0.0),
+    }
+
+    if expand_gain_k:
+        parameters["MC_ROLLRATE_P"] *= get_optional(px4_extra, "MC_ROLLRATE_K", 1.0)
+        parameters["MC_ROLLRATE_I"] *= get_optional(px4_extra, "MC_ROLLRATE_K", 1.0)
+        parameters["MC_ROLLRATE_D"] *= get_optional(px4_extra, "MC_ROLLRATE_K", 1.0)
+        parameters["MC_ROLLRATE_FF"] *= get_optional(px4_extra, "MC_ROLLRATE_K", 1.0)
+
+        parameters["MC_PITCHRATE_P"] *= get_optional(px4_extra, "MC_PITCHRATE_K", 1.0)
+        parameters["MC_PITCHRATE_I"] *= get_optional(px4_extra, "MC_PITCHRATE_K", 1.0)
+        parameters["MC_PITCHRATE_D"] *= get_optional(px4_extra, "MC_PITCHRATE_K", 1.0)
+        parameters["MC_PITCHRATE_FF"] *= get_optional(px4_extra, "MC_PITCHRATE_K", 1.0)
+
+        parameters["MC_YAWRATE_P"] *= get_optional(px4_extra, "MC_YAWRATE_K", 1.0)
+        parameters["MC_YAWRATE_I"] *= get_optional(px4_extra, "MC_YAWRATE_K", 1.0)
+        parameters["MC_YAWRATE_D"] *= get_optional(px4_extra, "MC_YAWRATE_K", 1.0)
+        parameters["MC_YAWRATE_FF"] *= get_optional(px4_extra, "MC_YAWRATE_K", 1.0)
+
+    if "MC_RR_INT_LIM" in px4_extra:
+        parameters["MC_RR_INT_LIM"] = float(px4_extra["MC_RR_INT_LIM"])
+    elif allow_torque_limit_heuristic and "PID_ROLL_TORQUE_MAX" in hakoniwa_params:
+        parameters["MC_RR_INT_LIM"] = float(hakoniwa_params["PID_ROLL_TORQUE_MAX"])
+
+    if "MC_PR_INT_LIM" in px4_extra:
+        parameters["MC_PR_INT_LIM"] = float(px4_extra["MC_PR_INT_LIM"])
+    elif allow_torque_limit_heuristic and "PID_PITCH_TORQUE_MAX" in hakoniwa_params:
+        parameters["MC_PR_INT_LIM"] = float(hakoniwa_params["PID_PITCH_TORQUE_MAX"])
+
+    if "MC_YR_INT_LIM" in px4_extra:
+        parameters["MC_YR_INT_LIM"] = float(px4_extra["MC_YR_INT_LIM"])
+    elif allow_torque_limit_heuristic and "PID_YAW_TORQUE_MAX" in hakoniwa_params:
+        parameters["MC_YR_INT_LIM"] = float(hakoniwa_params["PID_YAW_TORQUE_MAX"])
+
+    return parameters
+
+
+def compose_runtime(hakoniwa_params: dict[str, float]) -> dict[str, float]:
+    rate_cycle = get_optional(hakoniwa_params, "ANGULAR_RATE_CONTROL_CYCLE", 0.0)
+    sim_dt = get_optional(hakoniwa_params, "SIMULATION_DELTA_TIME", 0.0)
+
+    if rate_cycle > 0.0:
+        rate_hz = 1.0 / rate_cycle
+    elif sim_dt > 0.0:
+        rate_hz = 1.0 / sim_dt
+    else:
+        raise ValueError("failed to derive rate_hz from ANGULAR_RATE_CONTROL_CYCLE or SIMULATION_DELTA_TIME")
+
+    return {
+        "rate_hz": rate_hz
+    }
+
+
+def compose_config(
+    hakoniwa_txt_path: Path,
+    px4_extra_path: Path,
+    output_path: Path,
+    expand_gain_k: bool,
+    allow_torque_limit_heuristic: bool,
+) -> None:
+    hakoniwa_params = parse_hakoniwa_txt(hakoniwa_txt_path)
+    px4_extra_json = load_json(px4_extra_path)
+    px4_extra = px4_extra_json.get("rate_control", {}).get("extra", {})
+
+    config = {
+        "schema_version": 1,
+        "px4_version": {
+            "git_commit": PX4_GIT_COMMIT,
+            "git_describe": PX4_GIT_DESCRIBE,
+        },
+        "runtime": compose_runtime(hakoniwa_params),
+        "rate_control": {
+            "parameters": compose_rate_control_parameters(
+                hakoniwa_params,
+                px4_extra,
+                expand_gain_k=expand_gain_k,
+                allow_torque_limit_heuristic=allow_torque_limit_heuristic,
+            )
+        },
+    }
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(config, indent=2, sort_keys=True) + "\n")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Compose px4-controller-config.json for PX4 RateControl from Hakoniwa txt and PX4 extra json."
+    )
+    parser.add_argument("--hakoniwa-txt", required=True, help="Hakoniwa controller parameter txt")
+    parser.add_argument("--px4-extra-json", required=True, help="PX4 extra json")
+    parser.add_argument("--output", required=True, help="Output px4-controller-config.json path")
+    parser.add_argument("--expand-gain-k", action="store_true", help="Expand MC_*RATE_K into P/I/D/FF")
+    parser.add_argument(
+        "--allow-torque-limit-to-integrator-limit-heuristic",
+        action="store_true",
+        help="Fallback to PID_*_TORQUE_MAX when MC_*_INT_LIM is absent",
+    )
+    args = parser.parse_args()
+
+    compose_config(
+        hakoniwa_txt_path=Path(args.hakoniwa_txt),
+        px4_extra_path=Path(args.px4_extra_json),
+        output_path=Path(args.output),
+        expand_gain_k=args.expand_gain_k,
+        allow_torque_limit_heuristic=args.allow_torque_limit_to_integrator_limit_heuristic,
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
