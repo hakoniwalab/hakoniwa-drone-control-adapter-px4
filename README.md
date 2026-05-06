@@ -27,7 +27,9 @@ Current repository contents now include:
 - PX4 submodule wiring
 - minimal CMake build for PX4 `RateControl`
 - `Px4RateControlBackend` wrapper skeleton
+- `Px4ControllerConfigLoader`
 - converter tool for `txt + extra.json -> px4-controller-config.json`
+- config-only end-to-end smoke path
 - smoke test executable for `Px4RateControlBackend`
 - local compatibility shims required to build `src/lib/rate_control`
 
@@ -65,6 +67,12 @@ Converter responsibility:
 - compose runtime-facing PX4 controller config
 - keep Hakoniwa-native parameter handling outside the C++ runtime
 - allow config-only execution paths later
+
+Loader responsibility:
+
+- read `px4-controller-config.json`
+- build typed C++ config for backend initialization
+- avoid depending on Hakoniwa-native `txt` or PX4 extra files at runtime
 
 ## Build And Test
 

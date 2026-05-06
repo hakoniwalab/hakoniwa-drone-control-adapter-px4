@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "px4_version": {
+    "git_commit": "a1726d316a941af9524f6279eb293a713d8fdcac",
+    "git_describe": "v1.17.0-alpha1-1702-ga1726d316a"
+  },
+  "runtime": {
+    "rate_hz": 1000.0
+  },
+  "rate_control": {
+    "parameters": {
+      "MC_PITCHRATE_D": 0.02,
+      "MC_PITCHRATE_FF": 0.0,
+      "MC_PITCHRATE_I": 0.0,
+      "MC_PITCHRATE_P": 1.5,
+      "MC_PR_INT_LIM": 0.3,
+      "MC_ROLLRATE_D": 0.02,
+      "MC_ROLLRATE_FF": 0.0,
+      "MC_ROLLRATE_I": 0.0,
+      "MC_ROLLRATE_P": 1.5,
+      "MC_RR_INT_LIM": 0.3,
+      "MC_YAWRATE_D": 0.0,
+      "MC_YAWRATE_FF": 0.0,
+      "MC_YAWRATE_I": 0.0,
+      "MC_YAWRATE_P": 0.452,
+      "MC_YR_INT_LIM": 0.2
+    }
+  }
+}
