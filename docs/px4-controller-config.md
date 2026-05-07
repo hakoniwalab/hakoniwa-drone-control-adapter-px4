@@ -97,6 +97,7 @@ Example high-level shape:
   "runtime": {
     "altitude_hz": 250.0,
     "attitude_hz": 250.0,
+    "horizontal_hz": 250.0,
     "rate_hz": 250.0
   },
   "altitude_control": {
@@ -121,6 +122,21 @@ Example high-level shape:
       "MC_ROLLRATE_MAX": 188.49,
       "MC_PITCHRATE_MAX": 188.49,
       "MC_YAWRATE_MAX": 18.84
+    }
+  },
+  "horizontal_control": {
+    "parameters": {
+      "MPC_XY_P": 6.0,
+      "MPC_XY_VEL_P_ACC": 10.0,
+      "MPC_XY_VEL_I_ACC": 0.0,
+      "MPC_XY_VEL_D_ACC": 0.1,
+      "MPC_XY_VEL_MAX": 20.0,
+      "MPC_TILTMAX_AIR": 0.2617993877991494,
+      "MPC_THR_XY_MARG": 0.3,
+      "MPC_ACC_DECOUPLE": 1.0,
+      "MPC_THR_HOVER": 0.5,
+      "MPC_THR_MIN": 0.1,
+      "MPC_THR_MAX": 0.9
     }
   },
   "rate_control": {
@@ -162,8 +178,21 @@ At the current implementation stage:
 - `Px4AltitudeControlBackend` already has a typed config surface
 - `Px4RateControlBackend` already has a typed config surface
 - `Px4AttitudeControlBackend` already has a typed config surface
-- the loader reads altitude, attitude, and rate control sections
-- the Python converter emits altitude, attitude, and rate sections
+- `Px4HorizontalPositionControlBackend` already has a typed config surface
+- the loader reads altitude, attitude, horizontal, and rate control sections
+- the Python converter emits altitude, attitude, horizontal, and rate sections
+
+## Runtime Mode And Config Responsibility
+
+The runtime config file contains backend parameters only.
+
+It does not contain runtime input mode such as:
+
+- altitude hold vs climb/descent velocity command
+- horizontal position hold vs horizontal velocity command
+
+Those are runtime input decisions expressed through the backend API on each
+`run()` call.
 
 ## Practical Direction
 

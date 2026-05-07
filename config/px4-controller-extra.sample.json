@@ -12,6 +12,15 @@
       "MC_YAW_WEIGHT": 0.4
     }
   },
+  "horizontal_control": {
+    "extra": {
+      "MPC_ACC_DECOUPLE": 1.0,
+      "MPC_THR_HOVER": 0.5,
+      "MPC_THR_MAX": 0.9,
+      "MPC_THR_MIN": 0.1,
+      "MPC_THR_XY_MARG": 0.3
+    }
+  },
   "rate_control": {
     "extra": {
       "MC_PITCHRATE_FF": 0.0,

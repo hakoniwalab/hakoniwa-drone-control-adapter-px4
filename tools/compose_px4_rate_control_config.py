@@ -43,6 +43,14 @@ def get_optional(params: dict[str, float], key: str, default: float) -> float:
     return float(params.get(key, default))
 
 
+def require_same_value(params: dict[str, float], key_a: str, key_b: str, tolerance: float = 1e-9) -> float:
+    a = require(params, key_a)
+    b = require(params, key_b)
+    if abs(a - b) > tolerance:
+        raise ValueError(f"expected matching Hakoniwa parameters for PX4 shared axis mapping: {key_a}={a}, {key_b}={b}")
+    return a
+
+
 def compose_rate_control_parameters(
     hakoniwa_params: dict[str, float],
     px4_extra: dict[str, float],
@@ -131,6 +139,29 @@ def compose_altitude_control_parameters(
     }
 
 
+def compose_horizontal_control_parameters(
+    hakoniwa_params: dict[str, float],
+    px4_extra: dict[str, float],
+) -> dict[str, float]:
+    tilt_limit_deg = min(
+        require(hakoniwa_params, "PID_POS_MAX_ROLL"),
+        require(hakoniwa_params, "PID_POS_MAX_PITCH"),
+    )
+    return {
+        "MPC_XY_P": require_same_value(hakoniwa_params, "PID_POS_X_Kp", "PID_POS_Y_Kp"),
+        "MPC_XY_VEL_P_ACC": require_same_value(hakoniwa_params, "PID_POS_VX_Kp", "PID_POS_VY_Kp"),
+        "MPC_XY_VEL_I_ACC": require_same_value(hakoniwa_params, "PID_POS_VX_Ki", "PID_POS_VY_Ki"),
+        "MPC_XY_VEL_D_ACC": require_same_value(hakoniwa_params, "PID_POS_VX_Kd", "PID_POS_VY_Kd"),
+        "MPC_XY_VEL_MAX": require(hakoniwa_params, "PID_POS_MAX_SPD"),
+        "MPC_TILTMAX_AIR": tilt_limit_deg * 3.141592653589793 / 180.0,
+        "MPC_THR_XY_MARG": get_optional(px4_extra, "MPC_THR_XY_MARG", 0.3),
+        "MPC_ACC_DECOUPLE": get_optional(px4_extra, "MPC_ACC_DECOUPLE", 1.0),
+        "MPC_THR_HOVER": get_optional(px4_extra, "MPC_THR_HOVER", 0.5),
+        "MPC_THR_MIN": get_optional(px4_extra, "MPC_THR_MIN", 0.1),
+        "MPC_THR_MAX": get_optional(px4_extra, "MPC_THR_MAX", 0.9),
+    }
+
+
 def compose_runtime(hakoniwa_params: dict[str, float]) -> dict[str, float]:
     def derive_frequency(cycle_key: str) -> float:
         cycle = get_optional(hakoniwa_params, cycle_key, 0.0)
@@ -145,6 +176,7 @@ def compose_runtime(hakoniwa_params: dict[str, float]) -> dict[str, float]:
     return {
         "altitude_hz": derive_frequency("PID_ALT_CONTROL_CYCLE"),
         "attitude_hz": derive_frequency("ANGULAR_CONTROL_CYCLE"),
+        "horizontal_hz": derive_frequency("SPD_CONTROL_CYCLE"),
         "rate_hz": derive_frequency("ANGULAR_RATE_CONTROL_CYCLE")
     }
 
@@ -160,6 +192,7 @@ def compose_config(
     px4_extra_json = load_json(px4_extra_path)
     altitude_extra = px4_extra_json.get("altitude_control", {}).get("extra", {})
     attitude_extra = px4_extra_json.get("attitude_control", {}).get("extra", {})
+    horizontal_extra = px4_extra_json.get("horizontal_control", {}).get("extra", {})
     px4_extra = px4_extra_json.get("rate_control", {}).get("extra", {})
 
     config = {
@@ -181,6 +214,12 @@ def compose_config(
                 attitude_extra,
             )
         },
+        "horizontal_control": {
+            "parameters": compose_horizontal_control_parameters(
+                hakoniwa_params,
+                horizontal_extra,
+            )
+        },
         "rate_control": {
             "parameters": compose_rate_control_parameters(
                 hakoniwa_params,
@@ -197,7 +236,7 @@ def compose_config(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Compose px4-controller-config.json for PX4 RateControl from Hakoniwa txt and PX4 extra json."
+        description="Compose px4-controller-config.json for PX4 control backends from Hakoniwa txt and PX4 extra json."
     )
     parser.add_argument("--hakoniwa-txt", required=True, help="Hakoniwa controller parameter txt")
     parser.add_argument("--px4-extra-json", required=True, help="PX4 extra json")

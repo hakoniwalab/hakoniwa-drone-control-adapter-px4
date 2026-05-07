@@ -92,13 +92,13 @@ PX4 `PositionControl`:
 - outputs normalized thrust vector
 - uses hover thrust as the main normalization anchor
 
-Therefore the altitude backend contract should be PX4-first:
+Therefore the altitude backend contract should stay narrow but be mode-aware:
 
 - input:
   - current z position
   - current z velocity
   - current z acceleration
-  - target altitude
+  - either target altitude or target vertical velocity
 - output:
   - normalized vertical thrust
 
@@ -111,19 +111,29 @@ The first public interface direction is:
 
 - `IAltitudeControlBackend`
 - input:
+  - control mode:
+    - `AltitudeControlMode::Position`
+    - `AltitudeControlMode::Velocity`
   - z position
   - z velocity
   - z acceleration
-  - target altitude
+  - target altitude and/or target vertical velocity depending on mode
   - `dt`
 - output:
   - normalized vertical thrust command
 
+This preserves the practical Hakoniwa-side need for:
+
+- altitude-hold style control
+- RC-style climb/descent velocity control
+
+while still driving a single PX4 `PositionControl` object underneath.
+
 ## Next Implementation Steps
 
-- add `Px4AltitudeControlBackend`
-- add minimal uORB topic shims needed by `PositionControl`
-- add `altitude_control` section to `px4-controller-config.json`
-- extend Python converter for vertical parameters
-- extend C++ config loader for vertical parameters
-- add backend smoke and config-only smoke
+- [x] add `Px4AltitudeControlBackend`
+- [x] add minimal uORB topic shims needed by `PositionControl`
+- [x] add `altitude_control` section to `px4-controller-config.json`
+- [x] extend Python converter for vertical parameters
+- [x] extend C++ config loader for vertical parameters
+- [x] add backend smoke and config-only smoke

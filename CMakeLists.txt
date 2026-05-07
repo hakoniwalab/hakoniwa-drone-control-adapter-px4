@@ -15,6 +15,7 @@ add_library(hakoniwa_drone_control_adapter_px4
     src/px4_controller_config_loader.cpp
     src/px4_altitude_control_backend.cpp
     src/px4_attitude_control_backend.cpp
+    src/px4_horizontal_position_control_backend.cpp
     src/px4_rate_control_backend.cpp
     ${PX4_ROOT}/src/modules/mc_pos_control/PositionControl/ControlMath.cpp
     ${PX4_ROOT}/src/modules/mc_pos_control/PositionControl/PositionControl.cpp
@@ -82,6 +83,20 @@ add_test(
     COMMAND px4_altitude_control_backend_smoke
 )
 
+add_executable(px4_horizontal_position_control_backend_smoke
+    test/px4_horizontal_position_control_backend_smoke.cpp
+)
+
+target_link_libraries(px4_horizontal_position_control_backend_smoke
+    PRIVATE
+        hakoniwa_drone_control_adapter_px4
+)
+
+add_test(
+    NAME px4_horizontal_position_control_backend_smoke
+    COMMAND px4_horizontal_position_control_backend_smoke
+)
+
 add_executable(px4_controller_config_loader_smoke
     test/px4_controller_config_loader_smoke.cpp
 )
@@ -94,6 +109,9 @@ target_link_libraries(px4_controller_config_loader_smoke
 add_test(
     NAME px4_controller_config_loader_smoke
     COMMAND px4_controller_config_loader_smoke
+)
+set_tests_properties(px4_controller_config_loader_smoke PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
 )
 
 add_executable(px4_rate_control_config_only_smoke
@@ -109,6 +127,9 @@ add_test(
     NAME px4_rate_control_config_only_smoke
     COMMAND px4_rate_control_config_only_smoke
 )
+set_tests_properties(px4_rate_control_config_only_smoke PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
+)
 
 add_executable(px4_attitude_control_config_only_smoke
     test/px4_attitude_control_config_only_smoke.cpp
@@ -123,6 +144,9 @@ add_test(
     NAME px4_attitude_control_config_only_smoke
     COMMAND px4_attitude_control_config_only_smoke
 )
+set_tests_properties(px4_attitude_control_config_only_smoke PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
+)
 
 add_executable(px4_altitude_control_config_only_smoke
     test/px4_altitude_control_config_only_smoke.cpp
@@ -136,6 +160,26 @@ target_link_libraries(px4_altitude_control_config_only_smoke
 add_test(
     NAME px4_altitude_control_config_only_smoke
     COMMAND px4_altitude_control_config_only_smoke
+)
+set_tests_properties(px4_altitude_control_config_only_smoke PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
+)
+
+add_executable(px4_horizontal_position_control_config_only_smoke
+    test/px4_horizontal_position_control_config_only_smoke.cpp
+)
+
+target_link_libraries(px4_horizontal_position_control_config_only_smoke
+    PRIVATE
+        hakoniwa_drone_control_adapter_px4
+)
+
+add_test(
+    NAME px4_horizontal_position_control_config_only_smoke
+    COMMAND px4_horizontal_position_control_config_only_smoke
+)
+set_tests_properties(px4_horizontal_position_control_config_only_smoke PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
 )
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)

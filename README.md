@@ -25,6 +25,7 @@ Implemented control layers:
 - `IRateControlBackend`
 - `IAttitudeControlBackend`
 - `IAltitudeControlBackend`
+- `IHorizontalPositionControlBackend`
 
 Current repository contents now include:
 
@@ -35,12 +36,14 @@ Current repository contents now include:
 - `Px4RateControlBackend` wrapper skeleton
 - `Px4AttitudeControlBackend` wrapper
 - `Px4AltitudeControlBackend` wrapper
+- `Px4HorizontalPositionControlBackend` wrapper
 - `Px4ControllerConfigLoader`
 - converter tool for `txt + extra.json -> px4-controller-config.json`
 - config-only end-to-end smoke path
 - smoke test executable for `Px4RateControlBackend`
 - smoke test executable for `Px4AttitudeControlBackend`
 - smoke test executable for `Px4AltitudeControlBackend`
+- smoke test executable for `Px4HorizontalPositionControlBackend`
 - local compatibility shims required to build `RateControl` and `PositionControl`
 
 The wrapper is intentionally narrow:
@@ -58,9 +61,15 @@ The attitude wrapper is also intentionally narrow:
 
 The altitude wrapper is intentionally narrow as well:
 
-- input: z position, z velocity, z acceleration, target altitude, `dt`
+- input: z position, z velocity, z acceleration, mode-aware target, `dt`
 - output: normalized vertical thrust
 - physical thrust conversion belongs outside the backend
+
+The horizontal wrapper is intentionally narrow too:
+
+- input: x/y position, x/y velocity, x/y acceleration, current yaw, mode-aware target, `dt`
+- output: roll/pitch tilt target derived from PX4 `PositionControl`
+- RC-style velocity commands and position-hold commands are both expressed through the same backend input mode
 
 Higher-level orchestration, scheduler policy, and mixer/control allocation integration are not included yet.
 
@@ -71,6 +80,8 @@ Higher-level orchestration, scheduler policy, and mixer/control allocation integ
 - [RateControl Parameter Mapping](docs/rate-control-parameter-mapping.md)
 - [Attitude Control Investigation](docs/attitude-control-investigation.md)
 - [Altitude Control Investigation](docs/altitude-control-investigation.md)
+- [Horizontal Control Parameter Mapping](docs/horizontal-control-parameter-mapping.md)
+- [Position Control Layer Investigation](docs/position-control-layer-investigation.md)
 
 ## Converter Tool
 
@@ -82,6 +93,7 @@ Current scope:
 
 - altitude control
 - attitude control
+- horizontal control
 - rate control
 - input:
   - Hakoniwa controller `txt`

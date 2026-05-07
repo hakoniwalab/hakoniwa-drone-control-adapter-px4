@@ -41,13 +41,14 @@ NormalizedVerticalThrustCommand Px4AltitudeControlBackend::run(const AltitudeCon
     controller_->setState(state);
 
     trajectory_setpoint_s setpoint = PositionControl::empty_trajectory_setpoint;
-    setpoint.position[0] = 0.0f;
-    setpoint.position[1] = 0.0f;
-    setpoint.position[2] = f64(input.target_altitude);
-    setpoint.velocity[0] = 0.0f;
-    setpoint.velocity[1] = 0.0f;
     setpoint.acceleration[0] = 0.0f;
     setpoint.acceleration[1] = 0.0f;
+    if (input.mode == AltitudeControlMode::Position) {
+        setpoint.position[2] = f64(input.target_altitude);
+    }
+    else {
+        setpoint.velocity[2] = f64(input.target_velocity.vz);
+    }
     setpoint.yaw = 0.0f;
     setpoint.yawspeed = 0.0f;
     controller_->setInputSetpoint(setpoint);

@@ -45,6 +45,7 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
 
     config.runtime.altitude_hz = extract_number(text, "altitude_hz");
     config.runtime.attitude_hz = extract_number(text, "attitude_hz");
+    config.runtime.horizontal_hz = extract_number(text, "horizontal_hz");
     config.runtime.rate_hz = extract_number(text, "rate_hz");
 
     config.altitude_control.position_gain_z = extract_number(text, "MPC_Z_P");
@@ -64,6 +65,19 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
     config.attitude_control.rate_limits.roll_rad_sec = extract_number(text, "MC_ROLLRATE_MAX");
     config.attitude_control.rate_limits.pitch_rad_sec = extract_number(text, "MC_PITCHRATE_MAX");
     config.attitude_control.rate_limits.yaw_rad_sec = extract_number(text, "MC_YAWRATE_MAX");
+
+    config.horizontal_control.position_gain_xy = extract_number(text, "MPC_XY_P");
+    config.horizontal_control.velocity_p_xy = extract_number(text, "MPC_XY_VEL_P_ACC");
+    config.horizontal_control.velocity_i_xy = extract_number(text, "MPC_XY_VEL_I_ACC");
+    config.horizontal_control.velocity_d_xy = extract_number(text, "MPC_XY_VEL_D_ACC");
+    config.horizontal_control.velocity_max_xy_mps = extract_number(text, "MPC_XY_VEL_MAX");
+    config.horizontal_control.tilt_limit_rad = extract_number(text, "MPC_TILTMAX_AIR");
+    config.horizontal_control.horizontal_thrust_margin = extract_number(text, "MPC_THR_XY_MARG");
+    config.horizontal_control.hover_thrust = extract_number(text, "MPC_THR_HOVER");
+    config.horizontal_control.thrust_min = extract_number(text, "MPC_THR_MIN");
+    config.horizontal_control.thrust_max = extract_number(text, "MPC_THR_MAX");
+    config.horizontal_control.decouple_horizontal_and_vertical_acceleration =
+        extract_number(text, "MPC_ACC_DECOUPLE") != 0.0;
 
     config.rate_control.gains.roll.p = extract_number(text, "MC_ROLLRATE_P");
     config.rate_control.gains.roll.i = extract_number(text, "MC_ROLLRATE_I");

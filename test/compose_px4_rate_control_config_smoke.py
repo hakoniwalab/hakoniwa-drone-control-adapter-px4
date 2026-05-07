@@ -35,13 +35,16 @@ def main() -> int:
         assert "runtime" in data
         assert "altitude_control" in data
         assert "attitude_control" in data
+        assert "horizontal_control" in data
         assert "rate_control" in data
         assert "parameters" in data["altitude_control"]
         assert "parameters" in data["attitude_control"]
+        assert "parameters" in data["horizontal_control"]
         assert "parameters" in data["rate_control"]
 
         altitude_params = data["altitude_control"]["parameters"]
         attitude_params = data["attitude_control"]["parameters"]
+        horizontal_params = data["horizontal_control"]["parameters"]
         params = data["rate_control"]["parameters"]
         assert abs(altitude_params["MPC_Z_P"] - 10.0) < 1e-9
         assert abs(altitude_params["MPC_Z_VEL_P_ACC"] - 15.0) < 1e-9
@@ -55,12 +58,19 @@ def main() -> int:
         assert abs(attitude_params["MC_ROLLRATE_MAX"] - 188.49555921538757) < 1e-9
         assert abs(attitude_params["MC_YAWRATE_MAX"] - 18.84955592153876) < 1e-9
         assert abs(attitude_params["MC_YAW_WEIGHT"] - 0.4) < 1e-9
+        assert abs(horizontal_params["MPC_XY_P"] - 6.0) < 1e-9
+        assert abs(horizontal_params["MPC_XY_VEL_P_ACC"] - 10.0) < 1e-9
+        assert abs(horizontal_params["MPC_XY_VEL_D_ACC"] - 0.10) < 1e-9
+        assert abs(horizontal_params["MPC_XY_VEL_MAX"] - 20.0) < 1e-9
+        assert abs(horizontal_params["MPC_TILTMAX_AIR"] - 0.2617993877991494) < 1e-9
+        assert abs(horizontal_params["MPC_THR_XY_MARG"] - 0.3) < 1e-9
         assert abs(params["MC_ROLLRATE_P"] - 1.5) < 1e-9
         assert abs(params["MC_PITCHRATE_D"] - 0.02) < 1e-9
         assert abs(params["MC_YAWRATE_P"] - 0.452) < 1e-9
         assert abs(params["MC_RR_INT_LIM"] - 0.3) < 1e-9
         assert abs(data["runtime"]["altitude_hz"] - 1000.0) < 1e-9
         assert abs(data["runtime"]["attitude_hz"] - 1000.0) < 1e-9
+        assert abs(data["runtime"]["horizontal_hz"] - 1000.0) < 1e-9
         assert abs(data["runtime"]["rate_hz"] - 1000.0) < 1e-9
 
     return 0
