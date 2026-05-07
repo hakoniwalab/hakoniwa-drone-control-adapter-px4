@@ -66,6 +66,11 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
     config.attitude_control.rate_limits.pitch_rad_sec = extract_number(text, "MC_PITCHRATE_MAX");
     config.attitude_control.rate_limits.yaw_rad_sec = extract_number(text, "MC_YAWRATE_MAX");
 
+    config.control_allocation.normalize_rpy = extract_number(text, "CA_RPY_NORMALIZE") != 0.0;
+    config.control_allocation.metric_allocation = extract_number(text, "CA_METRIC_ALLOCATION") != 0.0;
+    config.control_allocation.update_normalization_scale =
+        extract_number(text, "CA_UPDATE_NORMALIZATION_SCALE") != 0.0;
+
     config.horizontal_control.position_gain_xy = extract_number(text, "MPC_XY_P");
     config.horizontal_control.velocity_p_xy = extract_number(text, "MPC_XY_VEL_P_ACC");
     config.horizontal_control.velocity_i_xy = extract_number(text, "MPC_XY_VEL_I_ACC");

@@ -45,6 +45,9 @@ int main()
     require(nearly_equal(config.attitude_control.yaw_weight, 0.4), "unexpected yaw weight");
     require(nearly_equal(config.attitude_control.rate_limits.roll_rad_sec, 314.1592653589793), "unexpected roll rate limit");
     require(nearly_equal(config.attitude_control.rate_limits.yaw_rad_sec, 31.41592653589793), "unexpected yaw rate limit");
+    require(config.control_allocation.normalize_rpy, "unexpected control allocation normalize_rpy");
+    require(!config.control_allocation.metric_allocation, "unexpected control allocation metric_allocation");
+    require(config.control_allocation.update_normalization_scale, "unexpected control allocation normalization scale update");
     require(nearly_equal(config.horizontal_control.position_gain_xy, 6.0), "unexpected horizontal pos p");
     require(nearly_equal(config.horizontal_control.velocity_p_xy, 10.0), "unexpected horizontal vel p");
     require(nearly_equal(config.horizontal_control.velocity_d_xy, 0.1), "unexpected horizontal vel d");

@@ -15,6 +15,7 @@ Architecture rationale and interface policy belong in `docs/`.
 - attitude-control path is established through backend, converter, loader, and config-only smoke
 - altitude-control path is established through backend, converter, loader, and config-only smoke
 - horizontal-control path is established through backend, converter, loader, and config-only smoke
+- control-allocation path is established through backend, converter, loader, and config-only smoke
 
 ## Done
 
@@ -90,6 +91,18 @@ Architecture rationale and interface policy belong in `docs/`.
 - [x] Add C++ loader support for horizontal control
 - [x] Add backend smoke test
 - [x] Add config-only smoke test
+
+### Control Allocation
+
+- [x] Investigate Hakoniwa `AircraftMixer` vs PX4 allocator boundary
+- [x] Record control-allocation investigation note
+- [x] Define `IControlAllocationBackend`
+- [x] Decide first public geometry/effectiveness contract
+- [x] Decide whether allocation status is part of the first public interface
+- [x] Add first PX4 allocator backend around `ControlAllocationPseudoInverse`
+- [x] Add config section, loader support, and smoke test
+- [ ] Decide whether allocator-feedback interpretation needs its own public interface
+- [ ] Document PX4 `unallocated_torque -> rate saturation` feedback path separately from allocator core
 
 ### Usage Samples
 

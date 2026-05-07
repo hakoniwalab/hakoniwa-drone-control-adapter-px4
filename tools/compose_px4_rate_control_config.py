@@ -162,6 +162,16 @@ def compose_horizontal_control_parameters(
     }
 
 
+def compose_control_allocation_parameters(
+    px4_extra: dict[str, float],
+) -> dict[str, float]:
+    return {
+        "CA_RPY_NORMALIZE": get_optional(px4_extra, "CA_RPY_NORMALIZE", 1.0),
+        "CA_METRIC_ALLOCATION": get_optional(px4_extra, "CA_METRIC_ALLOCATION", 0.0),
+        "CA_UPDATE_NORMALIZATION_SCALE": get_optional(px4_extra, "CA_UPDATE_NORMALIZATION_SCALE", 1.0),
+    }
+
+
 def compose_runtime(hakoniwa_params: dict[str, float]) -> dict[str, float]:
     def derive_frequency(cycle_key: str) -> float:
         cycle = get_optional(hakoniwa_params, cycle_key, 0.0)
@@ -192,6 +202,7 @@ def compose_config(
     px4_extra_json = load_json(px4_extra_path)
     altitude_extra = px4_extra_json.get("altitude_control", {}).get("extra", {})
     attitude_extra = px4_extra_json.get("attitude_control", {}).get("extra", {})
+    control_allocation_extra = px4_extra_json.get("control_allocation", {}).get("extra", {})
     horizontal_extra = px4_extra_json.get("horizontal_control", {}).get("extra", {})
     px4_extra = px4_extra_json.get("rate_control", {}).get("extra", {})
 
@@ -212,6 +223,11 @@ def compose_config(
             "parameters": compose_attitude_control_parameters(
                 hakoniwa_params,
                 attitude_extra,
+            )
+        },
+        "control_allocation": {
+            "parameters": compose_control_allocation_parameters(
+                control_allocation_extra,
             )
         },
         "horizontal_control": {

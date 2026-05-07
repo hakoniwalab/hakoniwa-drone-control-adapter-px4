@@ -124,6 +124,13 @@ Example high-level shape:
       "MC_YAWRATE_MAX": 18.84
     }
   },
+  "control_allocation": {
+    "parameters": {
+      "CA_RPY_NORMALIZE": 1.0,
+      "CA_METRIC_ALLOCATION": 0.0,
+      "CA_UPDATE_NORMALIZATION_SCALE": 1.0
+    }
+  },
   "horizontal_control": {
     "parameters": {
       "MPC_XY_P": 6.0,
@@ -178,9 +185,10 @@ At the current implementation stage:
 - `Px4AltitudeControlBackend` already has a typed config surface
 - `Px4RateControlBackend` already has a typed config surface
 - `Px4AttitudeControlBackend` already has a typed config surface
+- `Px4ControlAllocationBackend` already has a typed config surface
 - `Px4HorizontalPositionControlBackend` already has a typed config surface
-- the loader reads altitude, attitude, horizontal, and rate control sections
-- the Python converter emits altitude, attitude, horizontal, and rate sections
+- the loader reads altitude, attitude, control-allocation, horizontal, and rate control sections
+- the Python converter emits altitude, attitude, control-allocation, horizontal, and rate sections
 
 ## Runtime Mode And Config Responsibility
 

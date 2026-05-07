@@ -34,6 +34,13 @@
       "MC_YAW_WEIGHT": 0.4
     }
   },
+  "control_allocation": {
+    "parameters": {
+      "CA_METRIC_ALLOCATION": 0.0,
+      "CA_RPY_NORMALIZE": 1.0,
+      "CA_UPDATE_NORMALIZATION_SCALE": 1.0
+    }
+  },
   "horizontal_control": {
     "parameters": {
       "MPC_ACC_DECOUPLE": 1.0,

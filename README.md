@@ -74,6 +74,7 @@ Implemented control layers:
 - `IAttitudeControlBackend`
 - `IAltitudeControlBackend`
 - `IHorizontalPositionControlBackend`
+- `IControlAllocationBackend`
 
 Current repository contents now include:
 
@@ -85,6 +86,7 @@ Current repository contents now include:
 - `Px4AttitudeControlBackend` wrapper
 - `Px4AltitudeControlBackend` wrapper
 - `Px4HorizontalPositionControlBackend` wrapper
+- `Px4ControlAllocationBackend` wrapper
 - `Px4ControllerConfigLoader`
 - converter tool for `txt + extra.json -> px4-controller-config.json`
 - config-only end-to-end smoke path
@@ -92,6 +94,7 @@ Current repository contents now include:
 - smoke test executable for `Px4AttitudeControlBackend`
 - smoke test executable for `Px4AltitudeControlBackend`
 - smoke test executable for `Px4HorizontalPositionControlBackend`
+- smoke test executable for `Px4ControlAllocationBackend`
 - executable usage examples built from adapter-side shared test sources
 - executable frequency/scheduler usage examples built from adapter-side shared test sources
 - local compatibility shims required to build `RateControl` and `PositionControl`
@@ -121,7 +124,13 @@ The horizontal wrapper is intentionally narrow too:
 - output: roll/pitch tilt target derived from PX4 `PositionControl`
 - RC-style velocity commands and position-hold commands are both expressed through the same backend input mode
 
-Higher-level orchestration, scheduler policy, and mixer/control allocation integration are not included yet.
+The control-allocation wrapper is intentionally narrow as well:
+
+- input: thrust, body torque, actuator geometry, actuator limits, trim, and linearization point
+- output: actuator command array plus minimal allocation status
+- PX4 `ControlAllocationPseudoInverse` is the first implementation target
+
+Higher-level orchestration and scheduler policy are not included yet.
 
 ## Documents
 
@@ -130,6 +139,7 @@ Higher-level orchestration, scheduler policy, and mixer/control allocation integ
 - [RateControl Parameter Mapping](docs/rate-control-parameter-mapping.md)
 - [Attitude Control Investigation](docs/attitude-control-investigation.md)
 - [Altitude Control Investigation](docs/altitude-control-investigation.md)
+- [Control Allocation Investigation](docs/control-allocation-investigation.md)
 - [Horizontal Control Parameter Mapping](docs/horizontal-control-parameter-mapping.md)
 - [Position Control Layer Investigation](docs/position-control-layer-investigation.md)
 - [Usage Test Structure](docs/usage-test-structure.md)
@@ -144,6 +154,7 @@ Current scope:
 
 - altitude control
 - attitude control
+- control allocation
 - horizontal control
 - rate control
 - input:
