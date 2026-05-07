@@ -43,7 +43,16 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
 {
     Px4ControllerConfig config{};
 
+    config.runtime.attitude_hz = extract_number(text, "attitude_hz");
     config.runtime.rate_hz = extract_number(text, "rate_hz");
+
+    config.attitude_control.proportional_gains.roll = extract_number(text, "MC_ROLL_P");
+    config.attitude_control.proportional_gains.pitch = extract_number(text, "MC_PITCH_P");
+    config.attitude_control.proportional_gains.yaw = extract_number(text, "MC_YAW_P");
+    config.attitude_control.yaw_weight = extract_number(text, "MC_YAW_WEIGHT");
+    config.attitude_control.rate_limits.roll_rad_sec = extract_number(text, "MC_ROLLRATE_MAX");
+    config.attitude_control.rate_limits.pitch_rad_sec = extract_number(text, "MC_PITCHRATE_MAX");
+    config.attitude_control.rate_limits.yaw_rad_sec = extract_number(text, "MC_YAWRATE_MAX");
 
     config.rate_control.gains.roll.p = extract_number(text, "MC_ROLLRATE_P");
     config.rate_control.gains.roll.i = extract_number(text, "MC_ROLLRATE_I");

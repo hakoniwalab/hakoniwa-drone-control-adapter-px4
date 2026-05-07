@@ -95,7 +95,19 @@ Example high-level shape:
     "git_describe": "v1.17.0-alpha1-1702-ga1726d316a"
   },
   "runtime": {
+    "attitude_hz": 250.0,
     "rate_hz": 250.0
+  },
+  "attitude_control": {
+    "parameters": {
+      "MC_ROLL_P": 2.5,
+      "MC_PITCH_P": 2.5,
+      "MC_YAW_P": 0.1,
+      "MC_YAW_WEIGHT": 0.4,
+      "MC_ROLLRATE_MAX": 188.49,
+      "MC_PITCHRATE_MAX": 188.49,
+      "MC_YAWRATE_MAX": 18.84
+    }
   },
   "rate_control": {
     "parameters": {
@@ -134,9 +146,9 @@ The backend source of truth is only:
 At the current implementation stage:
 
 - `Px4RateControlBackend` already has a typed config surface
-- the next step is to define how that typed config is loaded from
-  `px4-controller-config.json`
-- the Python converter should emit this file
+- `Px4AttitudeControlBackend` already has a typed config surface
+- the loader reads both attitude and rate control sections
+- the Python converter emits both attitude and rate sections
 
 ## Practical Direction
 

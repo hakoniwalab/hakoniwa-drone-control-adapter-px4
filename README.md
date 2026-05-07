@@ -20,17 +20,21 @@ Policy:
 
 ## Current Status
 
-The initial implementation target is `IRateControlBackend`.
+The first implemented control layer is `IRateControlBackend`.
+The next active target is `IAttitudeControlBackend`.
 
 Current repository contents now include:
 
 - PX4 submodule wiring
 - minimal CMake build for PX4 `RateControl`
+- minimal CMake build for PX4 `AttitudeControl`
 - `Px4RateControlBackend` wrapper skeleton
+- `Px4AttitudeControlBackend` wrapper
 - `Px4ControllerConfigLoader`
 - converter tool for `txt + extra.json -> px4-controller-config.json`
 - config-only end-to-end smoke path
 - smoke test executable for `Px4RateControlBackend`
+- smoke test executable for `Px4AttitudeControlBackend`
 - local compatibility shims required to build `src/lib/rate_control`
 
 The wrapper is intentionally narrow:
@@ -40,12 +44,20 @@ The wrapper is intentionally narrow:
 - configuration: PX4 PID gains, integrator limits, feed-forward gains
 - runtime dependency: `px4-controller-config.json` only
 
+The attitude wrapper is also intentionally narrow:
+
+- input: quaternion attitude, quaternion target attitude, yaw-rate feed-forward
+- output: body-frame angular-rate target
+- Euler-to-quaternion conversion belongs outside the backend
+
 Higher-level orchestration, scheduler policy, and mixer/control allocation integration are not included yet.
 
 ## Documents
 
+- [Control Porting Workflow](docs/control-porting-workflow.md)
 - [PX4 Controller Config](docs/px4-controller-config.md)
 - [RateControl Parameter Mapping](docs/rate-control-parameter-mapping.md)
+- [Attitude Control Investigation](docs/attitude-control-investigation.md)
 
 ## Converter Tool
 
@@ -55,7 +67,8 @@ Current tool:
 
 Current scope:
 
-- rate control only
+- attitude control
+- rate control
 - input:
   - Hakoniwa controller `txt`
   - PX4 extra JSON
@@ -73,6 +86,10 @@ Loader responsibility:
 - read `px4-controller-config.json`
 - build typed C++ config for backend initialization
 - avoid depending on Hakoniwa-native `txt` or PX4 extra files at runtime
+
+Sample extra config:
+
+- `config/px4-controller-extra.sample.json`
 
 ## Build And Test
 

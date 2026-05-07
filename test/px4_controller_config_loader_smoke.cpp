@@ -29,7 +29,14 @@ int main()
     const Px4ControllerConfig config =
         loader.load_from_file("../config/px4-controller-config.sample.json");
 
+    require(nearly_equal(config.runtime.attitude_hz, 1000.0), "unexpected attitude_hz");
     require(nearly_equal(config.runtime.rate_hz, 1000.0), "unexpected rate_hz");
+    require(nearly_equal(config.attitude_control.proportional_gains.roll, 2.5), "unexpected attitude roll p");
+    require(nearly_equal(config.attitude_control.proportional_gains.pitch, 2.5), "unexpected attitude pitch p");
+    require(nearly_equal(config.attitude_control.proportional_gains.yaw, 0.1), "unexpected attitude yaw p");
+    require(nearly_equal(config.attitude_control.yaw_weight, 0.4), "unexpected yaw weight");
+    require(nearly_equal(config.attitude_control.rate_limits.roll_rad_sec, 314.1592653589793), "unexpected roll rate limit");
+    require(nearly_equal(config.attitude_control.rate_limits.yaw_rad_sec, 31.41592653589793), "unexpected yaw rate limit");
     require(nearly_equal(config.rate_control.gains.roll.p, 1.5), "unexpected roll p");
     require(nearly_equal(config.rate_control.gains.pitch.d, 0.02), "unexpected pitch d");
     require(nearly_equal(config.rate_control.gains.yaw.p, 0.452), "unexpected yaw p");

@@ -2,16 +2,19 @@
 
 #include <string>
 
+#include "hakoniwa/drone/control_adapter/px4_attitude_control_backend.hpp"
 #include "hakoniwa/drone/control_adapter/px4_rate_control_backend.hpp"
 
 namespace hakoniwa::drone::control_adapter {
 
 struct Px4ControllerRuntimeConfig {
+    double attitude_hz{0.0};
     double rate_hz{0.0};
 };
 
 struct Px4ControllerConfig {
     Px4ControllerRuntimeConfig runtime{};
+    Px4AttitudeControlBackendConfig attitude_control{};
     Px4RateControlBackendConfig rate_control{};
 };
 

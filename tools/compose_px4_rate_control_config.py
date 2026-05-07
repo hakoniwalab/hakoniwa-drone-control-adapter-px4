@@ -98,19 +98,35 @@ def compose_rate_control_parameters(
     return parameters
 
 
-def compose_runtime(hakoniwa_params: dict[str, float]) -> dict[str, float]:
-    rate_cycle = get_optional(hakoniwa_params, "ANGULAR_RATE_CONTROL_CYCLE", 0.0)
-    sim_dt = get_optional(hakoniwa_params, "SIMULATION_DELTA_TIME", 0.0)
+def compose_attitude_control_parameters(
+    hakoniwa_params: dict[str, float],
+    px4_extra: dict[str, float],
+) -> dict[str, float]:
+    return {
+        "MC_ROLL_P": require(hakoniwa_params, "PID_ROLL_Kp"),
+        "MC_PITCH_P": require(hakoniwa_params, "PID_PITCH_Kp"),
+        "MC_YAW_P": require(hakoniwa_params, "PID_YAW_Kp"),
+        "MC_ROLLRATE_MAX": require(hakoniwa_params, "PID_ROLL_RPM_MAX") * 2.0 * 3.141592653589793 / 60.0,
+        "MC_PITCHRATE_MAX": require(hakoniwa_params, "PID_PITCH_RPM_MAX") * 2.0 * 3.141592653589793 / 60.0,
+        "MC_YAWRATE_MAX": require(hakoniwa_params, "PID_YAW_RPM_MAX") * 2.0 * 3.141592653589793 / 60.0,
+        "MC_YAW_WEIGHT": get_optional(px4_extra, "MC_YAW_WEIGHT", 0.4),
+    }
 
-    if rate_cycle > 0.0:
-        rate_hz = 1.0 / rate_cycle
-    elif sim_dt > 0.0:
-        rate_hz = 1.0 / sim_dt
-    else:
-        raise ValueError("failed to derive rate_hz from ANGULAR_RATE_CONTROL_CYCLE or SIMULATION_DELTA_TIME")
+
+def compose_runtime(hakoniwa_params: dict[str, float]) -> dict[str, float]:
+    def derive_frequency(cycle_key: str) -> float:
+        cycle = get_optional(hakoniwa_params, cycle_key, 0.0)
+        sim_dt = get_optional(hakoniwa_params, "SIMULATION_DELTA_TIME", 0.0)
+
+        if cycle > 0.0:
+            return 1.0 / cycle
+        if sim_dt > 0.0:
+            return 1.0 / sim_dt
+        raise ValueError(f"failed to derive frequency from {cycle_key} or SIMULATION_DELTA_TIME")
 
     return {
-        "rate_hz": rate_hz
+        "attitude_hz": derive_frequency("ANGULAR_CONTROL_CYCLE"),
+        "rate_hz": derive_frequency("ANGULAR_RATE_CONTROL_CYCLE")
     }
 
 
@@ -123,6 +139,7 @@ def compose_config(
 ) -> None:
     hakoniwa_params = parse_hakoniwa_txt(hakoniwa_txt_path)
     px4_extra_json = load_json(px4_extra_path)
+    attitude_extra = px4_extra_json.get("attitude_control", {}).get("extra", {})
     px4_extra = px4_extra_json.get("rate_control", {}).get("extra", {})
 
     config = {
@@ -132,6 +149,12 @@ def compose_config(
             "git_describe": PX4_GIT_DESCRIBE,
         },
         "runtime": compose_runtime(hakoniwa_params),
+        "attitude_control": {
+            "parameters": compose_attitude_control_parameters(
+                hakoniwa_params,
+                attitude_extra,
+            )
+        },
         "rate_control": {
             "parameters": compose_rate_control_parameters(
                 hakoniwa_params,
