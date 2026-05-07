@@ -1,6 +1,45 @@
 # hakoniwa-drone-control-adapter-px4
 PX4-specific implementation of the Hakoniwa drone control adapter for integrating PX4-Autopilot with Hakoniwa.
 
+## Why This Exists
+
+This repository is the concrete PX4 backend implementation for the public
+control interfaces defined in:
+
+- `hakoniwa-drone-control-adapter`
+
+Related simulator-side context:
+
+- `hakoniwa-drone-core`
+  - https://github.com/toppers/hakoniwa-drone-core
+
+The purpose of this repository is not to reproduce the full PX4 runtime.
+
+Instead, it reuses PX4 control core components behind a stable adapter
+boundary so they can participate in Hakoniwa-oriented autotuning and
+regression workflows without requiring a full external TCP/UDP integration path
+for every tuning run.
+
+In other words:
+
+- `hakoniwa-drone-control-adapter` defines the public control contract
+- this repository makes that contract executable with PX4 control logic
+
+## Why It Matters
+
+Without this style of integration, PX4-based control experiments tend to rely
+on external runtime coupling, which is useful for connection testing but heavy
+for large parameter sweeps.
+
+This repository makes a different tradeoff:
+
+- reuse PX4 controller cores directly
+- keep Hakoniwa-side fast iteration workflows
+- enable high-volume PID autotuning, replay, and regression runs with PX4-based
+  control behavior
+
+That is the main value of this repository.
+
 ## PX4 Source Management
 
 This repository manages PX4 as a git submodule.
@@ -17,6 +56,15 @@ Policy:
 
 - Prefer tracking upstream PX4 without local source patches.
 - If Hakoniwa-specific changes become necessary, record them explicitly in this repository rather than relying on an unmanaged workspace copy.
+
+## Relationship To Other Repositories
+
+- `hakoniwa-drone-core`
+  - public simulator core
+  - provides the wider Hakoniwa drone simulation context
+- `hakoniwa-drone-control-adapter`
+  - public backend-facing control interface
+  - this repository implements that interface for PX4
 
 ## Current Status
 
@@ -44,6 +92,8 @@ Current repository contents now include:
 - smoke test executable for `Px4AttitudeControlBackend`
 - smoke test executable for `Px4AltitudeControlBackend`
 - smoke test executable for `Px4HorizontalPositionControlBackend`
+- executable usage examples built from adapter-side shared test sources
+- executable frequency/scheduler usage examples built from adapter-side shared test sources
 - local compatibility shims required to build `RateControl` and `PositionControl`
 
 The wrapper is intentionally narrow:
@@ -82,6 +132,7 @@ Higher-level orchestration, scheduler policy, and mixer/control allocation integ
 - [Altitude Control Investigation](docs/altitude-control-investigation.md)
 - [Horizontal Control Parameter Mapping](docs/horizontal-control-parameter-mapping.md)
 - [Position Control Layer Investigation](docs/position-control-layer-investigation.md)
+- [Usage Test Structure](docs/usage-test-structure.md)
 
 ## Converter Tool
 

@@ -41,6 +41,8 @@ target_compile_features(hakoniwa_drone_control_adapter_px4
         cxx_std_17
 )
 
+set(ADAPTER_TEST_ROOT ${ADAPTER_ROOT}/test)
+
 add_executable(px4_rate_control_backend_smoke
     test/px4_rate_control_backend_smoke.cpp
 )
@@ -179,6 +181,52 @@ add_test(
     COMMAND px4_horizontal_position_control_config_only_smoke
 )
 set_tests_properties(px4_horizontal_position_control_config_only_smoke PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
+)
+
+add_executable(px4_usage_examples
+    ${ADAPTER_TEST_ROOT}/usage_examples.cpp
+    test/px4_usage_examples.cpp
+)
+
+target_include_directories(px4_usage_examples
+    PRIVATE
+        ${ADAPTER_TEST_ROOT}
+)
+
+target_link_libraries(px4_usage_examples
+    PRIVATE
+        hakoniwa_drone_control_adapter_px4
+)
+
+add_test(
+    NAME px4_usage_examples
+    COMMAND px4_usage_examples
+)
+set_tests_properties(px4_usage_examples PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
+)
+
+add_executable(px4_frequency_usage_examples
+    ${ADAPTER_TEST_ROOT}/frequency_usage_examples.cpp
+    test/px4_frequency_usage_examples.cpp
+)
+
+target_include_directories(px4_frequency_usage_examples
+    PRIVATE
+        ${ADAPTER_TEST_ROOT}
+)
+
+target_link_libraries(px4_frequency_usage_examples
+    PRIVATE
+        hakoniwa_drone_control_adapter_px4
+)
+
+add_test(
+    NAME px4_frequency_usage_examples
+    COMMAND px4_frequency_usage_examples
+)
+set_tests_properties(px4_frequency_usage_examples PROPERTIES
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
 )
 
