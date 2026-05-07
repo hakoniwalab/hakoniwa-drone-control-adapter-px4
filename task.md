@@ -101,8 +101,9 @@ Architecture rationale and interface policy belong in `docs/`.
 - [x] Decide whether allocation status is part of the first public interface
 - [x] Add first PX4 allocator backend around `ControlAllocationPseudoInverse`
 - [x] Add config section, loader support, and smoke test
-- [ ] Decide whether allocator-feedback interpretation needs its own public interface
-- [ ] Document PX4 `unallocated_torque -> rate saturation` feedback path separately from allocator core
+- [x] Decide whether allocator-feedback interpretation needs its own public interface
+- [x] Document PX4 `unallocated_torque -> rate saturation` feedback path separately from allocator core
+- [x] Add PX4-compatible sign-based allocation feedback policy example
 
 ### Usage Samples
 

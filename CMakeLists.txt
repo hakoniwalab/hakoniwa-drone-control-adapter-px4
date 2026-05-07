@@ -14,6 +14,7 @@ set(PX4_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/PX4-Autopilot)
 add_library(hakoniwa_drone_control_adapter_px4
     src/px4_controller_config_loader.cpp
     src/px4_altitude_control_backend.cpp
+    src/px4_allocation_feedback_policy.cpp
     src/px4_attitude_control_backend.cpp
     src/px4_control_allocation_backend.cpp
     src/px4_horizontal_position_control_backend.cpp
@@ -240,6 +241,29 @@ add_test(
     COMMAND px4_usage_examples
 )
 set_tests_properties(px4_usage_examples PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
+)
+
+add_executable(px4_feedback_policy_examples
+    ${ADAPTER_TEST_ROOT}/feedback_policy_examples.cpp
+    test/px4_feedback_policy_examples.cpp
+)
+
+target_include_directories(px4_feedback_policy_examples
+    PRIVATE
+        ${ADAPTER_TEST_ROOT}
+)
+
+target_link_libraries(px4_feedback_policy_examples
+    PRIVATE
+        hakoniwa_drone_control_adapter_px4
+)
+
+add_test(
+    NAME px4_feedback_policy_examples
+    COMMAND px4_feedback_policy_examples
+)
+set_tests_properties(px4_feedback_policy_examples PROPERTIES
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
 )
 

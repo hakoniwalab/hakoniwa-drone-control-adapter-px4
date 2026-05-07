@@ -140,6 +140,7 @@ Higher-level orchestration and scheduler policy are not included yet.
 - [Attitude Control Investigation](docs/attitude-control-investigation.md)
 - [Altitude Control Investigation](docs/altitude-control-investigation.md)
 - [Control Allocation Investigation](docs/control-allocation-investigation.md)
+- [Control Allocation Feedback Investigation](docs/control-allocation-feedback-investigation.md)
 - [Horizontal Control Parameter Mapping](docs/horizontal-control-parameter-mapping.md)
 - [Position Control Layer Investigation](docs/position-control-layer-investigation.md)
 - [Usage Test Structure](docs/usage-test-structure.md)
