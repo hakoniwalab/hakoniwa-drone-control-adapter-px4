@@ -20,22 +20,28 @@ Policy:
 
 ## Current Status
 
-The first implemented control layer is `IRateControlBackend`.
-The next active target is `IAttitudeControlBackend`.
+Implemented control layers:
+
+- `IRateControlBackend`
+- `IAttitudeControlBackend`
+- `IAltitudeControlBackend`
 
 Current repository contents now include:
 
 - PX4 submodule wiring
 - minimal CMake build for PX4 `RateControl`
 - minimal CMake build for PX4 `AttitudeControl`
+- minimal CMake build for PX4 `PositionControl`
 - `Px4RateControlBackend` wrapper skeleton
 - `Px4AttitudeControlBackend` wrapper
+- `Px4AltitudeControlBackend` wrapper
 - `Px4ControllerConfigLoader`
 - converter tool for `txt + extra.json -> px4-controller-config.json`
 - config-only end-to-end smoke path
 - smoke test executable for `Px4RateControlBackend`
 - smoke test executable for `Px4AttitudeControlBackend`
-- local compatibility shims required to build `src/lib/rate_control`
+- smoke test executable for `Px4AltitudeControlBackend`
+- local compatibility shims required to build `RateControl` and `PositionControl`
 
 The wrapper is intentionally narrow:
 
@@ -50,6 +56,12 @@ The attitude wrapper is also intentionally narrow:
 - output: body-frame angular-rate target
 - Euler-to-quaternion conversion belongs outside the backend
 
+The altitude wrapper is intentionally narrow as well:
+
+- input: z position, z velocity, z acceleration, target altitude, `dt`
+- output: normalized vertical thrust
+- physical thrust conversion belongs outside the backend
+
 Higher-level orchestration, scheduler policy, and mixer/control allocation integration are not included yet.
 
 ## Documents
@@ -58,6 +70,7 @@ Higher-level orchestration, scheduler policy, and mixer/control allocation integ
 - [PX4 Controller Config](docs/px4-controller-config.md)
 - [RateControl Parameter Mapping](docs/rate-control-parameter-mapping.md)
 - [Attitude Control Investigation](docs/attitude-control-investigation.md)
+- [Altitude Control Investigation](docs/altitude-control-investigation.md)
 
 ## Converter Tool
 
@@ -67,6 +80,7 @@ Current tool:
 
 Current scope:
 
+- altitude control
 - attitude control
 - rate control
 - input:

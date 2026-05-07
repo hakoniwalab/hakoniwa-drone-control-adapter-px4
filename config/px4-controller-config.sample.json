@@ -5,8 +5,22 @@
     "git_describe": "v1.17.0-alpha1-1702-ga1726d316a"
   },
   "runtime": {
+    "altitude_hz": 1000.0,
     "attitude_hz": 1000.0,
     "rate_hz": 1000.0
+  },
+  "altitude_control": {
+    "parameters": {
+      "MPC_THR_HOVER": 0.5,
+      "MPC_THR_MAX": 0.9,
+      "MPC_THR_MIN": 0.1,
+      "MPC_Z_P": 10.0,
+      "MPC_Z_VEL_D_ACC": 10.0,
+      "MPC_Z_VEL_I_ACC": 0.0,
+      "MPC_Z_VEL_MAX_DN": 10.0,
+      "MPC_Z_VEL_MAX_UP": 10.0,
+      "MPC_Z_VEL_P_ACC": 15.0
+    }
   },
   "attitude_control": {
     "parameters": {

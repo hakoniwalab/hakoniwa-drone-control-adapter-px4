@@ -43,8 +43,19 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
 {
     Px4ControllerConfig config{};
 
+    config.runtime.altitude_hz = extract_number(text, "altitude_hz");
     config.runtime.attitude_hz = extract_number(text, "attitude_hz");
     config.runtime.rate_hz = extract_number(text, "rate_hz");
+
+    config.altitude_control.position_gain_z = extract_number(text, "MPC_Z_P");
+    config.altitude_control.velocity_p_z = extract_number(text, "MPC_Z_VEL_P_ACC");
+    config.altitude_control.velocity_i_z = extract_number(text, "MPC_Z_VEL_I_ACC");
+    config.altitude_control.velocity_d_z = extract_number(text, "MPC_Z_VEL_D_ACC");
+    config.altitude_control.velocity_max_up_mps = extract_number(text, "MPC_Z_VEL_MAX_UP");
+    config.altitude_control.velocity_max_down_mps = extract_number(text, "MPC_Z_VEL_MAX_DN");
+    config.altitude_control.hover_thrust = extract_number(text, "MPC_THR_HOVER");
+    config.altitude_control.thrust_min = extract_number(text, "MPC_THR_MIN");
+    config.altitude_control.thrust_max = extract_number(text, "MPC_THR_MAX");
 
     config.attitude_control.proportional_gains.roll = extract_number(text, "MC_ROLL_P");
     config.attitude_control.proportional_gains.pitch = extract_number(text, "MC_PITCH_P");

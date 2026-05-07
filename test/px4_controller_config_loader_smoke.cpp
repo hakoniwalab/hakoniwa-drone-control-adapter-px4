@@ -29,8 +29,15 @@ int main()
     const Px4ControllerConfig config =
         loader.load_from_file("../config/px4-controller-config.sample.json");
 
+    require(nearly_equal(config.runtime.altitude_hz, 1000.0), "unexpected altitude_hz");
     require(nearly_equal(config.runtime.attitude_hz, 1000.0), "unexpected attitude_hz");
     require(nearly_equal(config.runtime.rate_hz, 1000.0), "unexpected rate_hz");
+    require(nearly_equal(config.altitude_control.position_gain_z, 10.0), "unexpected altitude pos p");
+    require(nearly_equal(config.altitude_control.velocity_p_z, 15.0), "unexpected altitude vel p");
+    require(nearly_equal(config.altitude_control.velocity_d_z, 10.0), "unexpected altitude vel d");
+    require(nearly_equal(config.altitude_control.velocity_max_up_mps, 10.0), "unexpected altitude vel up");
+    require(nearly_equal(config.altitude_control.hover_thrust, 0.5), "unexpected hover thrust");
+    require(nearly_equal(config.altitude_control.thrust_max, 0.9), "unexpected thrust max");
     require(nearly_equal(config.attitude_control.proportional_gains.roll, 2.5), "unexpected attitude roll p");
     require(nearly_equal(config.attitude_control.proportional_gains.pitch, 2.5), "unexpected attitude pitch p");
     require(nearly_equal(config.attitude_control.proportional_gains.yaw, 0.1), "unexpected attitude yaw p");

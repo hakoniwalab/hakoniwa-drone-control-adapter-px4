@@ -113,6 +113,24 @@ def compose_attitude_control_parameters(
     }
 
 
+def compose_altitude_control_parameters(
+    hakoniwa_params: dict[str, float],
+    px4_extra: dict[str, float],
+) -> dict[str, float]:
+    max_spd = require(hakoniwa_params, "PID_ALT_MAX_SPD")
+    return {
+        "MPC_Z_P": require(hakoniwa_params, "PID_ALT_Kp"),
+        "MPC_Z_VEL_P_ACC": require(hakoniwa_params, "PID_ALT_SPD_Kp"),
+        "MPC_Z_VEL_I_ACC": require(hakoniwa_params, "PID_ALT_SPD_Ki"),
+        "MPC_Z_VEL_D_ACC": require(hakoniwa_params, "PID_ALT_SPD_Kd"),
+        "MPC_Z_VEL_MAX_UP": max_spd,
+        "MPC_Z_VEL_MAX_DN": max_spd,
+        "MPC_THR_HOVER": get_optional(px4_extra, "MPC_THR_HOVER", 0.5),
+        "MPC_THR_MIN": get_optional(px4_extra, "MPC_THR_MIN", 0.1),
+        "MPC_THR_MAX": get_optional(px4_extra, "MPC_THR_MAX", 0.9),
+    }
+
+
 def compose_runtime(hakoniwa_params: dict[str, float]) -> dict[str, float]:
     def derive_frequency(cycle_key: str) -> float:
         cycle = get_optional(hakoniwa_params, cycle_key, 0.0)
@@ -125,6 +143,7 @@ def compose_runtime(hakoniwa_params: dict[str, float]) -> dict[str, float]:
         raise ValueError(f"failed to derive frequency from {cycle_key} or SIMULATION_DELTA_TIME")
 
     return {
+        "altitude_hz": derive_frequency("PID_ALT_CONTROL_CYCLE"),
         "attitude_hz": derive_frequency("ANGULAR_CONTROL_CYCLE"),
         "rate_hz": derive_frequency("ANGULAR_RATE_CONTROL_CYCLE")
     }
@@ -139,6 +158,7 @@ def compose_config(
 ) -> None:
     hakoniwa_params = parse_hakoniwa_txt(hakoniwa_txt_path)
     px4_extra_json = load_json(px4_extra_path)
+    altitude_extra = px4_extra_json.get("altitude_control", {}).get("extra", {})
     attitude_extra = px4_extra_json.get("attitude_control", {}).get("extra", {})
     px4_extra = px4_extra_json.get("rate_control", {}).get("extra", {})
 
@@ -149,6 +169,12 @@ def compose_config(
             "git_describe": PX4_GIT_DESCRIBE,
         },
         "runtime": compose_runtime(hakoniwa_params),
+        "altitude_control": {
+            "parameters": compose_altitude_control_parameters(
+                hakoniwa_params,
+                altitude_extra,
+            )
+        },
         "attitude_control": {
             "parameters": compose_attitude_control_parameters(
                 hakoniwa_params,

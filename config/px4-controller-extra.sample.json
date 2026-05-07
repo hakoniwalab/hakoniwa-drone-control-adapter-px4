@@ -1,5 +1,12 @@
 {
   "schema_version": 1,
+  "altitude_control": {
+    "extra": {
+      "MPC_THR_HOVER": 0.5,
+      "MPC_THR_MAX": 0.9,
+      "MPC_THR_MIN": 0.1
+    }
+  },
   "attitude_control": {
     "extra": {
       "MC_YAW_WEIGHT": 0.4

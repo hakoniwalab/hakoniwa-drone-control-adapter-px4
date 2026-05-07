@@ -95,8 +95,22 @@ Example high-level shape:
     "git_describe": "v1.17.0-alpha1-1702-ga1726d316a"
   },
   "runtime": {
+    "altitude_hz": 250.0,
     "attitude_hz": 250.0,
     "rate_hz": 250.0
+  },
+  "altitude_control": {
+    "parameters": {
+      "MPC_Z_P": 10.0,
+      "MPC_Z_VEL_P_ACC": 15.0,
+      "MPC_Z_VEL_I_ACC": 0.0,
+      "MPC_Z_VEL_D_ACC": 10.0,
+      "MPC_Z_VEL_MAX_UP": 10.0,
+      "MPC_Z_VEL_MAX_DN": 10.0,
+      "MPC_THR_HOVER": 0.5,
+      "MPC_THR_MIN": 0.1,
+      "MPC_THR_MAX": 0.9
+    }
   },
   "attitude_control": {
     "parameters": {
@@ -145,10 +159,11 @@ The backend source of truth is only:
 
 At the current implementation stage:
 
+- `Px4AltitudeControlBackend` already has a typed config surface
 - `Px4RateControlBackend` already has a typed config surface
 - `Px4AttitudeControlBackend` already has a typed config surface
-- the loader reads both attitude and rate control sections
-- the Python converter emits both attitude and rate sections
+- the loader reads altitude, attitude, and rate control sections
+- the Python converter emits altitude, attitude, and rate sections
 
 ## Practical Direction
 

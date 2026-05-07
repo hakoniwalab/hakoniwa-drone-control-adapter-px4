@@ -33,13 +33,22 @@ def main() -> int:
         assert data["schema_version"] == 1
         assert "px4_version" in data
         assert "runtime" in data
+        assert "altitude_control" in data
         assert "attitude_control" in data
         assert "rate_control" in data
+        assert "parameters" in data["altitude_control"]
         assert "parameters" in data["attitude_control"]
         assert "parameters" in data["rate_control"]
 
+        altitude_params = data["altitude_control"]["parameters"]
         attitude_params = data["attitude_control"]["parameters"]
         params = data["rate_control"]["parameters"]
+        assert abs(altitude_params["MPC_Z_P"] - 10.0) < 1e-9
+        assert abs(altitude_params["MPC_Z_VEL_P_ACC"] - 15.0) < 1e-9
+        assert abs(altitude_params["MPC_Z_VEL_D_ACC"] - 10.0) < 1e-9
+        assert abs(altitude_params["MPC_Z_VEL_MAX_UP"] - 10.0) < 1e-9
+        assert abs(altitude_params["MPC_Z_VEL_MAX_DN"] - 10.0) < 1e-9
+        assert abs(altitude_params["MPC_THR_HOVER"] - 0.5) < 1e-9
         assert abs(attitude_params["MC_ROLL_P"] - 2.5) < 1e-9
         assert abs(attitude_params["MC_PITCH_P"] - 2.5) < 1e-9
         assert abs(attitude_params["MC_YAW_P"] - 0.1) < 1e-9
@@ -50,6 +59,7 @@ def main() -> int:
         assert abs(params["MC_PITCHRATE_D"] - 0.02) < 1e-9
         assert abs(params["MC_YAWRATE_P"] - 0.452) < 1e-9
         assert abs(params["MC_RR_INT_LIM"] - 0.3) < 1e-9
+        assert abs(data["runtime"]["altitude_hz"] - 1000.0) < 1e-9
         assert abs(data["runtime"]["attitude_hz"] - 1000.0) < 1e-9
         assert abs(data["runtime"]["rate_hz"] - 1000.0) < 1e-9
 
