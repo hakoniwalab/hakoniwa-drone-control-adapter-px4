@@ -29,8 +29,10 @@ int main()
     const NormalizedVerticalThrustCommand climb = backend.run(
         AltitudeControlInput{
             AltitudeControlMode::Position,
+            {},
             {0.0},
             {0.0},
+            {},
             {0.0},
             -0.7,
             {}

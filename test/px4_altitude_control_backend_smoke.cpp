@@ -35,8 +35,10 @@ int main()
     const NormalizedVerticalThrustCommand climb = backend.run(
         AltitudeControlInput{
             AltitudeControlMode::Position,
+            {},
             {0.0},
             {0.0},
+            {},
             {0.0},
             -0.7,
             {}
@@ -49,8 +51,10 @@ int main()
     const NormalizedVerticalThrustCommand descend = backend.run(
         AltitudeControlInput{
             AltitudeControlMode::Position,
+            {},
             {0.0},
             {0.0},
+            {},
             {0.0},
             0.7,
             {}
@@ -60,8 +64,10 @@ int main()
     const NormalizedVerticalThrustCommand climb_velocity = backend.run(
         AltitudeControlInput{
             AltitudeControlMode::Velocity,
+            {},
             {0.0},
             {0.0},
+            {},
             {0.0},
             0.0,
             {-0.5}
@@ -75,8 +81,10 @@ int main()
     const NormalizedVerticalThrustCommand hold = backend.run(
         AltitudeControlInput{
             AltitudeControlMode::Position,
+            {},
             {0.0},
             {0.0},
+            {},
             {0.0},
             0.0,
             {}

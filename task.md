@@ -126,8 +126,14 @@ Architecture rationale and interface policy belong in `docs/`.
 - [ ] Decide when to freeze a schema version
 - [ ] Decide whether usage/frequency example fixtures should be referenced from config documentation
 
+### Interface Follow-Up
+
+- [x] Extend `IAltitudeControlBackend` with current attitude and body-velocity context for Hakoniwa-native integration
+- [x] Remove the first native-wrapper vertical-control approximation by widening the public altitude contract
+
 ## Notes
 
 - C++ runtime/backend side should depend only on `px4-controller-config.json`
 - Hakoniwa-native `txt` handling belongs to the Python converter side
 - The workflow in `docs/control-porting-workflow.md` is the standard path for all future control layers
+- The first native `hakoniwa-drone-pro` wrapper pass exposed an interface gap mainly in vertical control semantics, and the public altitude contract was widened to absorb it
