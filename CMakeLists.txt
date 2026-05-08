@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.16)
 
 project(hakoniwa_drone_control_adapter_px4 LANGUAGES CXX)
 
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -11,7 +14,7 @@ enable_testing()
 set(ADAPTER_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/hakoniwa-drone-control-adapter)
 set(PX4_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/PX4-Autopilot)
 
-add_library(hakoniwa_drone_control_adapter_px4
+add_library(hakoniwa_drone_control_adapter_px4 STATIC
     src/px4_controller_config_loader.cpp
     src/px4_altitude_control_backend.cpp
     src/px4_allocation_feedback_policy.cpp
@@ -28,10 +31,14 @@ add_library(hakoniwa_drone_control_adapter_px4
     ${PX4_ROOT}/src/lib/rate_control/rate_control.cpp
 )
 
+add_library(hakoniwa_drone_control_adapter_px4::hakoniwa_drone_control_adapter_px4 ALIAS
+    hakoniwa_drone_control_adapter_px4)
+
 target_include_directories(hakoniwa_drone_control_adapter_px4
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${ADAPTER_ROOT}/include
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${ADAPTER_ROOT}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE
         ${PX4_ROOT}/src
         ${PX4_ROOT}/src/lib
@@ -46,6 +53,47 @@ target_include_directories(hakoniwa_drone_control_adapter_px4
 target_compile_features(hakoniwa_drone_control_adapter_px4
     PUBLIC
         cxx_std_17
+)
+
+install(
+    TARGETS hakoniwa_drone_control_adapter_px4
+    EXPORT hakoniwa_drone_control_adapter_px4Targets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(
+    DIRECTORY
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/
+        ${ADAPTER_ROOT}/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/hakoniwa_drone_control_adapter_px4ConfigVersion.cmake
+    VERSION 0.1.0
+    COMPATIBILITY SameMajorVersion
+)
+
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/hakoniwa_drone_control_adapter_px4Config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/hakoniwa_drone_control_adapter_px4Config.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/hakoniwa_drone_control_adapter_px4
+)
+
+install(
+    EXPORT hakoniwa_drone_control_adapter_px4Targets
+    FILE hakoniwa_drone_control_adapter_px4Targets.cmake
+    NAMESPACE hakoniwa_drone_control_adapter_px4::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/hakoniwa_drone_control_adapter_px4
+)
+
+install(
+    FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/hakoniwa_drone_control_adapter_px4Config.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/hakoniwa_drone_control_adapter_px4ConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/hakoniwa_drone_control_adapter_px4
 )
 
 set(ADAPTER_TEST_ROOT ${ADAPTER_ROOT}/test)

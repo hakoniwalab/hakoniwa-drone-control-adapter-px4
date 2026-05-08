@@ -1,0 +1,3 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/hakoniwa_drone_control_adapter_px4Targets.cmake")

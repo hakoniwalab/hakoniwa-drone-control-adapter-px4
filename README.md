@@ -64,6 +64,34 @@ Policy:
 - Prefer tracking upstream PX4 without local source patches.
 - If Hakoniwa-specific changes become necessary, record them explicitly in this repository rather than relying on an unmanaged workspace copy.
 
+## Build
+
+Initialize submodules first:
+
+```bash
+git submodule update --init --recursive
+```
+
+Then use the local build helper:
+
+```bash
+bash build.bash build
+bash build.bash test
+bash build.bash install
+```
+
+Default install output:
+
+- `install/lib/libhakoniwa_drone_control_adapter_px4.a`
+- `install/include/...`
+- `install/lib/cmake/hakoniwa_drone_control_adapter_px4/...`
+
+To change the install destination:
+
+```bash
+INSTALL_PREFIX=/path/to/install bash build.bash install
+```
+
 ## Relationship To Other Repositories
 
 - `hakoniwa-drone-core`
