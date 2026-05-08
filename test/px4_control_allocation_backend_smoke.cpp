@@ -25,27 +25,28 @@ ControlAllocationInput make_quadx_input()
 {
     ControlAllocationInput input{};
     input.actuator_count = 4;
-    input.command.thrust.body_z = -0.5;
+    input.command.thrust.body_z = -1.0;
 
-    input.actuators[0].geometry.position = {1.0, 1.0, 0.0};
-    input.actuators[1].geometry.position = {-1.0, 1.0, 0.0};
-    input.actuators[2].geometry.position = {-1.0, -1.0, 0.0};
-    input.actuators[3].geometry.position = {1.0, -1.0, 0.0};
+    input.actuators[0].geometry.position = {0.18, 0.18, 0.0};
+    input.actuators[1].geometry.position = {-0.18, -0.18, 0.0};
+    input.actuators[2].geometry.position = {0.18, -0.18, 0.0};
+    input.actuators[3].geometry.position = {-0.18, 0.18, 0.0};
 
     input.actuators[0].geometry.axis = {0.0, 0.0, -1.0};
     input.actuators[1].geometry.axis = {0.0, 0.0, -1.0};
     input.actuators[2].geometry.axis = {0.0, 0.0, -1.0};
     input.actuators[3].geometry.axis = {0.0, 0.0, -1.0};
 
-    input.actuators[0].geometry.thrust_coefficient = 1.0;
-    input.actuators[1].geometry.thrust_coefficient = 1.0;
-    input.actuators[2].geometry.thrust_coefficient = 1.0;
-    input.actuators[3].geometry.thrust_coefficient = 1.0;
+    input.actuators[0].geometry.thrust_coefficient = 1.12e-4;
+    input.actuators[1].geometry.thrust_coefficient = 1.12e-4;
+    input.actuators[2].geometry.thrust_coefficient = 1.12e-4;
+    input.actuators[3].geometry.thrust_coefficient = 1.12e-4;
 
-    input.actuators[0].geometry.moment_ratio = 1.0;
-    input.actuators[1].geometry.moment_ratio = -1.0;
-    input.actuators[2].geometry.moment_ratio = 1.0;
-    input.actuators[3].geometry.moment_ratio = -1.0;
+    const double moment_ratio = 2.64e-6 / 1.12e-4;
+    input.actuators[0].geometry.moment_ratio = moment_ratio;
+    input.actuators[1].geometry.moment_ratio = moment_ratio;
+    input.actuators[2].geometry.moment_ratio = -moment_ratio;
+    input.actuators[3].geometry.moment_ratio = -moment_ratio;
 
     for (std::size_t i = 0; i < input.actuator_count; ++i) {
         input.actuators[i].limit = {0.0, 1.0};
@@ -58,21 +59,41 @@ ControlAllocationInput make_quadx_input()
 
 int main()
 {
-    Px4ControlAllocationBackend backend(Px4ControlAllocationBackendConfig{});
+    Px4ControlAllocationBackendConfig config{};
+    config.vehicle_mass_kg = 0.61079;
+    config.gravity_mps2 = 9.81;
+    Px4ControlAllocationBackend backend(config);
 
     const ControlAllocationOutput collective = backend.run(make_quadx_input());
     require(collective.actuator_commands.count == 4, "unexpected actuator count");
-    require(nearly_equal(collective.actuator_commands.values[0], 0.5), "unexpected motor0 collective output");
-    require(nearly_equal(collective.actuator_commands.values[1], 0.5), "unexpected motor1 collective output");
-    require(nearly_equal(collective.actuator_commands.values[2], 0.5), "unexpected motor2 collective output");
-    require(nearly_equal(collective.actuator_commands.values[3], 0.5), "unexpected motor3 collective output");
+    require(nearly_equal(collective.actuator_commands.values[0], 0.25), "unexpected motor0 hover output");
+    require(nearly_equal(collective.actuator_commands.values[1], 0.25), "unexpected motor1 hover output");
+    require(nearly_equal(collective.actuator_commands.values[2], 0.25), "unexpected motor2 hover output");
+    require(nearly_equal(collective.actuator_commands.values[3], 0.25), "unexpected motor3 hover output");
     require(!collective.status.clipped, "collective thrust should not clip");
+    require(nearly_equal(collective.status.unallocated_thrust_body_z, 0.0), "hover thrust should be fully allocated");
+
+    ControlAllocationInput zero_input = make_quadx_input();
+    zero_input.command.thrust.body_z = 0.0;
+    const ControlAllocationOutput zero = backend.run(zero_input);
+    require(nearly_equal(zero.actuator_commands.values[0], 0.0), "zero collective should stop motor0");
+    require(nearly_equal(zero.actuator_commands.values[1], 0.0), "zero collective should stop motor1");
+    require(nearly_equal(zero.actuator_commands.values[2], 0.0), "zero collective should stop motor2");
+    require(nearly_equal(zero.actuator_commands.values[3], 0.0), "zero collective should stop motor3");
+
+    ControlAllocationInput climb_input = make_quadx_input();
+    climb_input.command.thrust.body_z = -1.6;
+    const ControlAllocationOutput climb = backend.run(climb_input);
+    require(nearly_equal(climb.actuator_commands.values[0], 0.4), "unexpected motor0 climb output");
+    require(nearly_equal(climb.actuator_commands.values[1], 0.4), "unexpected motor1 climb output");
+    require(nearly_equal(climb.actuator_commands.values[2], 0.4), "unexpected motor2 climb output");
+    require(nearly_equal(climb.actuator_commands.values[3], 0.4), "unexpected motor3 climb output");
 
     ControlAllocationInput roll_input = make_quadx_input();
-    roll_input.command.torque_x = 1.0;
+    roll_input.command.torque_x = 0.2;
     const ControlAllocationOutput roll = backend.run(roll_input);
-    require(roll.actuator_commands.values[0] < roll.actuator_commands.values[2], "positive roll should increase rear motors");
-    require(roll.actuator_commands.values[1] < roll.actuator_commands.values[3], "positive roll should increase rear motors pair");
+    require(roll.actuator_commands.values[0] < roll.actuator_commands.values[2], "positive roll should create differential output");
+    require(roll.actuator_commands.values[1] < roll.actuator_commands.values[3], "positive roll should create paired differential output");
 
     ControlAllocationInput clipped_input = make_quadx_input();
     clipped_input.command.torque_z = 2.0;

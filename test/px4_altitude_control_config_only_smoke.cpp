@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <cmath>
 #include <iostream>
 
 #include "hakoniwa/drone/control_adapter/px4_altitude_control_backend.hpp"
@@ -12,6 +13,14 @@ void require(bool condition, const char* message)
 {
     if (!condition) {
         std::cerr << message << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+}
+
+void require_near(double actual, double expected, double tolerance, const char* message)
+{
+    if (std::fabs(actual - expected) > tolerance) {
+        std::cerr << message << " actual=" << actual << " expected=" << expected << std::endl;
         std::exit(EXIT_FAILURE);
     }
 }
@@ -34,13 +43,28 @@ int main()
             {0.0},
             {},
             {0.0},
-            -0.7,
+            0.7,
             {}
         },
         1.0 / config.runtime.altitude_hz);
 
-    require(climb.body_z < -0.1, "unexpected config-only climb thrust");
-    require(climb.body_z > -0.9, "unexpected config-only thrust limit");
+    require(climb.body_z < -0.2, "unexpected config-only climb thrust");
+    require(climb.body_z > -1.8, "unexpected config-only thrust limit");
+
+    const NormalizedVerticalThrustCommand hold = backend.run(
+        AltitudeControlInput{
+            AltitudeControlMode::Position,
+            {},
+            {0.0},
+            {0.0},
+            {},
+            {0.0},
+            0.0,
+            {}
+        },
+        1.0 / config.runtime.altitude_hz);
+
+    require_near(hold.body_z, -1.0, 0.05, "unexpected config-only hover normalization");
 
     return EXIT_SUCCESS;
 }

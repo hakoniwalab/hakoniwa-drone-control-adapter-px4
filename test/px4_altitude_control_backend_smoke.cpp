@@ -1,6 +1,7 @@
 #include "hakoniwa/drone/control_adapter/px4_altitude_control_backend.hpp"
 
 #include <cstdlib>
+#include <cmath>
 #include <iostream>
 
 using namespace hakoniwa::drone::control_adapter;
@@ -11,6 +12,14 @@ void require(bool condition, const char* message)
 {
     if (!condition) {
         std::cerr << message << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+}
+
+void require_near(double actual, double expected, double tolerance, const char* message)
+{
+    if (std::fabs(actual - expected) > tolerance) {
+        std::cerr << message << " actual=" << actual << " expected=" << expected << std::endl;
         std::exit(EXIT_FAILURE);
     }
 }
@@ -40,13 +49,13 @@ int main()
             {0.0},
             {},
             {0.0},
-            -0.7,
+            0.7,
             {}
         },
         0.01);
 
-    require(climb.body_z < -0.1, "expected upward thrust command");
-    require(climb.body_z > -0.9, "expected thrust within configured limits");
+    require(climb.body_z < -0.2, "expected upward thrust command");
+    require(climb.body_z > -1.8, "expected thrust within configured limits");
 
     const NormalizedVerticalThrustCommand descend = backend.run(
         AltitudeControlInput{
@@ -56,7 +65,7 @@ int main()
             {0.0},
             {},
             {0.0},
-            0.7,
+            -0.7,
             {}
         },
         0.01);
@@ -70,12 +79,12 @@ int main()
             {},
             {0.0},
             0.0,
-            {-0.5}
+            {0.5}
         },
         0.01);
 
     require(descend.body_z > climb.body_z, "expected descent command to reduce upward thrust");
-    require(climb_velocity.body_z < descend.body_z, "expected negative vz to command more upward thrust");
+    require(climb_velocity.body_z < descend.body_z, "expected positive vz to command more upward thrust");
 
     backend.reset();
     const NormalizedVerticalThrustCommand hold = backend.run(
@@ -91,8 +100,7 @@ int main()
         },
         0.01);
 
-    require(hold.body_z < -0.1, "expected hover thrust after reset");
-    require(hold.body_z > -0.9, "expected hover thrust within limits");
+    require_near(hold.body_z, -1.0, 0.05, "expected hover thrust normalized to Hakoniwa convention");
 
     return EXIT_SUCCESS;
 }

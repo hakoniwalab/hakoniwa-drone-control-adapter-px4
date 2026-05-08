@@ -38,7 +38,9 @@
     "parameters": {
       "CA_METRIC_ALLOCATION": 0.0,
       "CA_RPY_NORMALIZE": 1.0,
-      "CA_UPDATE_NORMALIZATION_SCALE": 1.0
+      "CA_UPDATE_NORMALIZATION_SCALE": 1.0,
+      "GRAVITY": 9.81,
+      "MASS": 0.61079
     }
   },
   "horizontal_control": {

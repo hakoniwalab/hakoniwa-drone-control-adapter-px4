@@ -10,6 +10,8 @@ struct Px4ControlAllocationBackendConfig {
     bool normalize_rpy{true};
     bool metric_allocation{false};
     bool update_normalization_scale{true};
+    double vehicle_mass_kg{1.0};
+    double gravity_mps2{9.81};
 };
 
 class Px4ControlAllocationBackend final : public IControlAllocationBackend {

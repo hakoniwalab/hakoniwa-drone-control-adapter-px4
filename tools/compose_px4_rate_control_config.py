@@ -163,12 +163,15 @@ def compose_horizontal_control_parameters(
 
 
 def compose_control_allocation_parameters(
+    hakoniwa_params: dict[str, float],
     px4_extra: dict[str, float],
 ) -> dict[str, float]:
     return {
         "CA_RPY_NORMALIZE": get_optional(px4_extra, "CA_RPY_NORMALIZE", 1.0),
         "CA_METRIC_ALLOCATION": get_optional(px4_extra, "CA_METRIC_ALLOCATION", 0.0),
         "CA_UPDATE_NORMALIZATION_SCALE": get_optional(px4_extra, "CA_UPDATE_NORMALIZATION_SCALE", 1.0),
+        "MASS": require(hakoniwa_params, "MASS"),
+        "GRAVITY": require(hakoniwa_params, "GRAVITY"),
     }
 
 
@@ -227,6 +230,7 @@ def compose_config(
         },
         "control_allocation": {
             "parameters": compose_control_allocation_parameters(
+                hakoniwa_params,
                 control_allocation_extra,
             )
         },

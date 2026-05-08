@@ -20,28 +20,29 @@ ControlAllocationInput make_quadx_input()
 {
     ControlAllocationInput input{};
     input.actuator_count = 4;
-    input.command.thrust.body_z = -0.5;
-    input.command.torque_z = 0.2;
+    input.command.thrust.body_z = -1.0;
+    input.command.torque_z = 0.1;
 
-    input.actuators[0].geometry.position = {1.0, 1.0, 0.0};
-    input.actuators[1].geometry.position = {-1.0, 1.0, 0.0};
-    input.actuators[2].geometry.position = {-1.0, -1.0, 0.0};
-    input.actuators[3].geometry.position = {1.0, -1.0, 0.0};
+    input.actuators[0].geometry.position = {0.18, 0.18, 0.0};
+    input.actuators[1].geometry.position = {-0.18, -0.18, 0.0};
+    input.actuators[2].geometry.position = {0.18, -0.18, 0.0};
+    input.actuators[3].geometry.position = {-0.18, 0.18, 0.0};
 
     input.actuators[0].geometry.axis = {0.0, 0.0, -1.0};
     input.actuators[1].geometry.axis = {0.0, 0.0, -1.0};
     input.actuators[2].geometry.axis = {0.0, 0.0, -1.0};
     input.actuators[3].geometry.axis = {0.0, 0.0, -1.0};
 
-    input.actuators[0].geometry.thrust_coefficient = 1.0;
-    input.actuators[1].geometry.thrust_coefficient = 1.0;
-    input.actuators[2].geometry.thrust_coefficient = 1.0;
-    input.actuators[3].geometry.thrust_coefficient = 1.0;
+    input.actuators[0].geometry.thrust_coefficient = 1.12e-4;
+    input.actuators[1].geometry.thrust_coefficient = 1.12e-4;
+    input.actuators[2].geometry.thrust_coefficient = 1.12e-4;
+    input.actuators[3].geometry.thrust_coefficient = 1.12e-4;
 
-    input.actuators[0].geometry.moment_ratio = 1.0;
-    input.actuators[1].geometry.moment_ratio = -1.0;
-    input.actuators[2].geometry.moment_ratio = 1.0;
-    input.actuators[3].geometry.moment_ratio = -1.0;
+    const double moment_ratio = 2.64e-6 / 1.12e-4;
+    input.actuators[0].geometry.moment_ratio = moment_ratio;
+    input.actuators[1].geometry.moment_ratio = moment_ratio;
+    input.actuators[2].geometry.moment_ratio = -moment_ratio;
+    input.actuators[3].geometry.moment_ratio = -moment_ratio;
 
     for (std::size_t i = 0; i < input.actuator_count; ++i) {
         input.actuators[i].limit = {0.0, 1.0};
@@ -63,9 +64,10 @@ int main()
 
     require(output.actuator_commands.count == 4, "unexpected config-only actuator count");
     require(output.actuator_commands.values[0] > 0.0, "expected positive motor output");
-    require(output.actuator_commands.values[1] >= 0.0, "expected bounded motor output");
+    require(output.actuator_commands.values[1] > 0.0, "expected positive motor output");
     require(output.actuator_commands.values[2] > 0.0, "expected positive motor output");
-    require(output.actuator_commands.values[3] >= 0.0, "expected bounded motor output");
+    require(output.actuator_commands.values[3] > 0.0, "expected positive motor output");
+    require(std::fabs(output.status.unallocated_thrust_body_z) < 1e-3, "expected collective thrust to allocate");
 
     return EXIT_SUCCESS;
 }
