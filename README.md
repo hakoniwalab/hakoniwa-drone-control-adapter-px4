@@ -44,6 +44,11 @@ That is the main value of this repository.
 
 This repository manages PX4 as a git submodule.
 
+This repository also manages the public adapter contract as a git submodule.
+
+- Submodule path: `thirdparty/hakoniwa-drone-control-adapter`
+- Upstream: `https://github.com/hakoniwalab/hakoniwa-drone-control-adapter.git`
+
 - Submodule path: `thirdparty/PX4-Autopilot`
 - Upstream: `https://github.com/PX4/PX4-Autopilot.git`
 
@@ -54,6 +59,8 @@ Current pinned submodule revision:
 
 Policy:
 
+- Prefer using the public adapter repository through the managed submodule
+  rather than a sibling workspace checkout.
 - Prefer tracking upstream PX4 without local source patches.
 - If Hakoniwa-specific changes become necessary, record them explicitly in this repository rather than relying on an unmanaged workspace copy.
 

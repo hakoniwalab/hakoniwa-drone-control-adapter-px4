@@ -1,3 +1,6 @@
+[submodule "thirdparty/hakoniwa-drone-control-adapter"]
+	path = thirdparty/hakoniwa-drone-control-adapter
+	url = https://github.com/hakoniwalab/hakoniwa-drone-control-adapter.git
 [submodule "thirdparty/PX4-Autopilot"]
 	path = thirdparty/PX4-Autopilot
 	url = https://github.com/PX4/PX4-Autopilot.git

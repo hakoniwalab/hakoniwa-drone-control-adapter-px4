@@ -10,6 +10,7 @@ Architecture rationale and interface policy belong in `docs/`.
 ## Current Status
 
 - PX4 source is managed as a submodule
+- public adapter source is managed as a submodule
 - runtime-facing source of truth is `px4-controller-config.json`
 - rate-control path is established end-to-end
 - attitude-control path is established through backend, converter, loader, and config-only smoke
@@ -20,6 +21,7 @@ Architecture rationale and interface policy belong in `docs/`.
 ## Done
 
 - [x] Add PX4-Autopilot as submodule under `thirdparty/PX4-Autopilot`
+- [x] Switch adapter dependency to submodule under `thirdparty/hakoniwa-drone-control-adapter`
 - [x] Remove unmanaged workspace copy of PX4 source
 - [x] Add `Px4RateControlBackend`
 - [x] Add smoke test for direct `Px4RateControlBackend` execution

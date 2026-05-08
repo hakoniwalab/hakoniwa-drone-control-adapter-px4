@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 enable_testing()
 
-set(ADAPTER_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../hakoniwa-drone-control-adapter)
+set(ADAPTER_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/hakoniwa-drone-control-adapter)
 set(PX4_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/PX4-Autopilot)
 
 add_library(hakoniwa_drone_control_adapter_px4
