@@ -66,12 +66,13 @@ NormalizedVerticalThrustCommand Px4AltitudeControlBackend::run(const AltitudeCon
     const float px4_vz = hako_up_to_px4_down(input.velocity.vz);
     const float px4_az = hako_up_to_px4_down(input.acceleration.az);
 
+#if 0
     std::cout << "Running Px4AltitudeControlBackend with input: "
               << "mode=" << (input.mode == AltitudeControlMode::Position ? "Position" : "Velocity") << ", "
               << "target_altitude=" << input.target_altitude << ", "
               << "target_velocity=" << input.target_velocity.vz
               << std::endl;
-
+#endif
     PositionControlStates state{};
     state.position = matrix::Vector3f{0.0f, 0.0f, px4_z};
     state.velocity = matrix::Vector3f{0.0f, 0.0f, px4_vz};
@@ -101,7 +102,7 @@ NormalizedVerticalThrustCommand Px4AltitudeControlBackend::run(const AltitudeCon
 
     vehicle_local_position_setpoint_s local_position_setpoint{};
     controller_->getLocalPositionSetpoint(local_position_setpoint);
-
+#if 0
     std::cout
         << "[Px4Altitude] dt=" << dt_sec
         << " ok=" << ok
@@ -118,7 +119,7 @@ NormalizedVerticalThrustCommand Px4AltitudeControlBackend::run(const AltitudeCon
         << " px4_acc_sp_z=" << local_position_setpoint.acceleration[2]
         << " px4_thrust_z=" << local_position_setpoint.thrust[2]
         << std::endl;
-
+#endif
     if (!ok || !std::isfinite(local_position_setpoint.thrust[2])) {
         std::cerr
             << "Warning: PositionControl update failed or produced invalid thrust. "
@@ -132,9 +133,11 @@ NormalizedVerticalThrustCommand Px4AltitudeControlBackend::run(const AltitudeCon
         local_position_setpoint.thrust[2],
         f64(config_.hover_thrust));
 
+#if 0
     std::cout
         << " hako_body_z=" << hako_body_z
         << std::endl;
+#endif
 
     return NormalizedVerticalThrustCommand{
         hako_body_z
