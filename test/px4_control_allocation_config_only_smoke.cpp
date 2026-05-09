@@ -21,7 +21,6 @@ ControlAllocationInput make_quadx_input()
     ControlAllocationInput input{};
     input.actuator_count = 4;
     input.command.thrust.body_z = -1.0;
-    input.command.torque_z = 0.1;
 
     input.actuators[0].geometry.position = {0.18, 0.18, 0.0};
     input.actuators[1].geometry.position = {-0.18, -0.18, 0.0};
@@ -67,6 +66,8 @@ int main()
     require(output.actuator_commands.values[1] > 0.0, "expected positive motor output");
     require(output.actuator_commands.values[2] > 0.0, "expected positive motor output");
     require(output.actuator_commands.values[3] > 0.0, "expected positive motor output");
+    require(output.actuator_commands.values[0] < 0.2, "hover duty should stay below idle-throttle-like values");
+    require(std::fabs(output.actuator_commands.values[0] - 0.120311) < 1e-3, "expected hover-calibrated duty");
     require(std::fabs(output.status.unallocated_thrust_body_z) < 1e-3, "expected collective thrust to allocate");
 
     return EXIT_SUCCESS;

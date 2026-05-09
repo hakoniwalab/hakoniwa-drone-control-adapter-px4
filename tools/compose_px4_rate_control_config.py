@@ -170,6 +170,7 @@ def compose_control_allocation_parameters(
         "CA_RPY_NORMALIZE": get_optional(px4_extra, "CA_RPY_NORMALIZE", 1.0),
         "CA_METRIC_ALLOCATION": get_optional(px4_extra, "CA_METRIC_ALLOCATION", 0.0),
         "CA_UPDATE_NORMALIZATION_SCALE": get_optional(px4_extra, "CA_UPDATE_NORMALIZATION_SCALE", 1.0),
+        "CA_HOVER_DUTY": get_optional(px4_extra, "CA_HOVER_DUTY", 0.120311),
         "MASS": require(hakoniwa_params, "MASS"),
         "GRAVITY": require(hakoniwa_params, "GRAVITY"),
     }

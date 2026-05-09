@@ -14,6 +14,7 @@
   },
   "control_allocation": {
     "extra": {
+      "CA_HOVER_DUTY": 0.120311,
       "CA_METRIC_ALLOCATION": 0.0,
       "CA_RPY_NORMALIZE": 1.0,
       "CA_UPDATE_NORMALIZATION_SCALE": 1.0

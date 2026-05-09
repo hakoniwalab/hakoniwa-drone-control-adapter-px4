@@ -70,6 +70,7 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
     config.control_allocation.metric_allocation = extract_number(text, "CA_METRIC_ALLOCATION") != 0.0;
     config.control_allocation.update_normalization_scale =
         extract_number(text, "CA_UPDATE_NORMALIZATION_SCALE") != 0.0;
+    config.control_allocation.hover_duty = extract_number(text, "CA_HOVER_DUTY");
     config.control_allocation.vehicle_mass_kg = extract_number(text, "MASS");
     config.control_allocation.gravity_mps2 = extract_number(text, "GRAVITY");
 

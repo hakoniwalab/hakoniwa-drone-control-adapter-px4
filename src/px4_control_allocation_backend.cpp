@@ -35,6 +35,12 @@ double compute_hover_thrust_newton(const Px4ControlAllocationBackendConfig& conf
     return config.vehicle_mass_kg * config.gravity_mps2;
 }
 
+double compute_per_rotor_hover_thrust_newton(const Px4ControlAllocationBackendConfig& config, std::size_t actuator_count)
+{
+    const double count = (actuator_count > 0U) ? static_cast<double>(actuator_count) : 1.0;
+    return compute_hover_thrust_newton(config) / count;
+}
+
 double axis_scale_from_physical_effects(const std::array<double, kMaxActuatorCount>& values, std::size_t actuator_count)
 {
     double positive_sum = 0.0;
@@ -58,7 +64,8 @@ NormalizedAllocationModel build_normalized_allocation_model(
     const Px4ControlAllocationBackendConfig& config)
 {
     NormalizedAllocationModel model{};
-    const double hover_thrust_newton = compute_hover_thrust_newton(config);
+    const double per_rotor_hover_thrust_newton = compute_per_rotor_hover_thrust_newton(config, actuator_count);
+    const float per_rotor_collective_effect = -1.0f / static_cast<float>(actuator_count);
 
     std::array<double, kMaxActuatorCount> roll_physical{};
     std::array<double, kMaxActuatorCount> pitch_physical{};
@@ -89,13 +96,17 @@ NormalizedAllocationModel build_normalized_allocation_model(
         // directly in the allocator matrix; geometry and moment_ratio define
         // relative authority.
         const matrix::Vector3f physical_moment =
-            f32(hover_thrust_newton) * position.cross(axis) - f32(hover_thrust_newton) * moment_ratio * axis;
+            f32(per_rotor_hover_thrust_newton) * position.cross(axis) -
+            f32(per_rotor_hover_thrust_newton) * moment_ratio * axis;
 
         roll_physical[i] = static_cast<double>(physical_moment(0));
         pitch_physical[i] = static_cast<double>(physical_moment(1));
         yaw_physical[i] = static_cast<double>(physical_moment(2));
 
-        model.effectiveness(ControlAllocation::ControlAxis::THRUST_Z, i) = axis(2);
+        // One internal actuator unit means "this rotor produces hover thrust".
+        // Therefore each rotor contributes 1 / actuator_count of total vehicle hover.
+        model.effectiveness(ControlAllocation::ControlAxis::THRUST_Z, i) =
+            per_rotor_collective_effect * ((axis(2) < 0.0f) ? 1.0f : -1.0f);
     }
 
     model.roll_torque_scale_nm = axis_scale_from_physical_effects(roll_physical, actuator_count);
@@ -126,45 +137,57 @@ Px4ControlVector to_control_vector(
     return control;
 }
 
-Px4ActuatorVector to_trim_vector(const ControlAllocationInput& input, std::size_t actuator_count)
+Px4ActuatorVector to_trim_vector(
+    const ControlAllocationInput& input,
+    std::size_t actuator_count,
+    const Px4ControlAllocationBackendConfig& config)
 {
     Px4ActuatorVector trim{};
 
     for (std::size_t i = 0; i < actuator_count; ++i) {
-        trim(i) = f32(input.actuators[i].trim);
+        trim(i) = f32(input.actuators[i].trim / config.hover_duty);
     }
 
     return trim;
 }
 
-Px4ActuatorVector to_linearization_point_vector(const ControlAllocationInput& input, std::size_t actuator_count)
+Px4ActuatorVector to_linearization_point_vector(
+    const ControlAllocationInput& input,
+    std::size_t actuator_count,
+    const Px4ControlAllocationBackendConfig& config)
 {
     Px4ActuatorVector linearization{};
 
     for (std::size_t i = 0; i < actuator_count; ++i) {
-        linearization(i) = f32(input.actuators[i].linearization_point);
+        linearization(i) = f32(input.actuators[i].linearization_point / config.hover_duty);
     }
 
     return linearization;
 }
 
-Px4ActuatorVector to_min_vector(const ControlAllocationInput& input, std::size_t actuator_count)
+Px4ActuatorVector to_min_vector(
+    const ControlAllocationInput& input,
+    std::size_t actuator_count,
+    const Px4ControlAllocationBackendConfig& config)
 {
     Px4ActuatorVector actuator_min{};
 
     for (std::size_t i = 0; i < actuator_count; ++i) {
-        actuator_min(i) = f32(input.actuators[i].limit.min);
+        actuator_min(i) = f32(input.actuators[i].limit.min / config.hover_duty);
     }
 
     return actuator_min;
 }
 
-Px4ActuatorVector to_max_vector(const ControlAllocationInput& input, std::size_t actuator_count)
+Px4ActuatorVector to_max_vector(
+    const ControlAllocationInput& input,
+    std::size_t actuator_count,
+    const Px4ControlAllocationBackendConfig& config)
 {
     Px4ActuatorVector actuator_max{};
 
     for (std::size_t i = 0; i < actuator_count; ++i) {
-        actuator_max(i) = f32(input.actuators[i].limit.max);
+        actuator_max(i) = f32(input.actuators[i].limit.max / config.hover_duty);
     }
 
     return actuator_max;
@@ -221,18 +244,21 @@ ControlAllocationOutput Px4ControlAllocationBackend::run(const ControlAllocation
     if (actuator_count == 0U) {
         return make_unallocated_output(input, actuator_count);
     }
+    if (!(std::isfinite(config_.hover_duty) && config_.hover_duty > kMinScale)) {
+        throw std::runtime_error("Px4ControlAllocationBackend requires positive hover_duty");
+    }
 
     const NormalizedAllocationModel model =
         build_normalized_allocation_model(input, actuator_count, config_);
 
     controller_->setEffectivenessMatrix(
         model.effectiveness,
-        to_trim_vector(input, actuator_count),
-        to_linearization_point_vector(input, actuator_count),
+        to_trim_vector(input, actuator_count, config_),
+        to_linearization_point_vector(input, actuator_count, config_),
         static_cast<int>(actuator_count),
         config_.update_normalization_scale);
-    controller_->setActuatorMin(to_min_vector(input, actuator_count));
-    controller_->setActuatorMax(to_max_vector(input, actuator_count));
+    controller_->setActuatorMin(to_min_vector(input, actuator_count, config_));
+    controller_->setActuatorMax(to_max_vector(input, actuator_count, config_));
     controller_->setControlSetpoint(to_control_vector(input.command, model));
     controller_->allocate();
 
@@ -245,7 +271,7 @@ ControlAllocationOutput Px4ControlAllocationBackend::run(const ControlAllocation
     ControlAllocationOutput output{};
     output.actuator_commands.count = actuator_count;
     for (std::size_t i = 0; i < actuator_count; ++i) {
-        output.actuator_commands.values[i] = clipped(i);
+        output.actuator_commands.values[i] = clipped(i) * config_.hover_duty;
     }
 
     output.status.clipped = did_clip(unclipped, clipped, actuator_count);
@@ -261,13 +287,22 @@ ControlAllocationOutput Px4ControlAllocationBackend::run(const ControlAllocation
     output.status.unallocated_thrust_body_z = static_cast<double>(
         control_sp(ControlAllocation::ControlAxis::THRUST_Z) - allocated(ControlAllocation::ControlAxis::THRUST_Z));
 
+#if 0
     std::cout << "[Px4Allocation] thrust_body_z=" << input.command.thrust.body_z
               << " torque=(" << input.command.torque_x << "," << input.command.torque_y << "," << input.command.torque_z << ")"
               << " torque_scale=(" << model.roll_torque_scale_nm << "," << model.pitch_torque_scale_nm << "," << model.yaw_torque_scale_nm << ")"
+              << " hover_duty=" << config_.hover_duty
               << " clipped=" << output.status.clipped
               << " unalloc_thrust_z=" << output.status.unallocated_thrust_body_z
               << " actuator_count=" << output.actuator_commands.count
-              << " actuators=";
+              << " actuator_ratio=";
+    for (std::size_t i = 0; i < actuator_count; ++i) {
+        if (i > 0U) {
+            std::cout << ",";
+        }
+        std::cout << clipped(i);
+    }
+    std::cout << " actuators=";
     for (std::size_t i = 0; i < output.actuator_commands.count; ++i) {
         if (i > 0U) {
             std::cout << ",";
@@ -275,6 +310,7 @@ ControlAllocationOutput Px4ControlAllocationBackend::run(const ControlAllocation
         std::cout << output.actuator_commands.values[i];
     }
     std::cout << std::endl;
+#endif
 
     return output;
 }
