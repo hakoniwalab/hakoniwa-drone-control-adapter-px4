@@ -32,6 +32,12 @@ double extract_number(const std::string& text, const char* key)
     return std::stod(match[1].str());
 }
 
+bool has_key(const std::string& text, const char* key)
+{
+    const std::regex pattern("\"" + std::string(key) + "\"\\s*:");
+    return std::regex_search(text, pattern);
+}
+
 }  // namespace
 
 Px4ControllerConfig Px4ControllerConfigLoader::load_from_file(const std::string& path) const
@@ -46,6 +52,9 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
     config.runtime.altitude_hz = extract_number(text, "altitude_hz");
     config.runtime.attitude_hz = extract_number(text, "attitude_hz");
     config.runtime.horizontal_hz = extract_number(text, "horizontal_hz");
+    config.runtime.position_hz = has_key(text, "position_hz")
+        ? extract_number(text, "position_hz")
+        : 0.0;
     config.runtime.rate_hz = extract_number(text, "rate_hz");
 
     config.altitude_control.position_gain_z = extract_number(text, "MPC_Z_P");
@@ -86,6 +95,31 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
     config.horizontal_control.thrust_max = extract_number(text, "MPC_THR_MAX");
     config.horizontal_control.decouple_horizontal_and_vertical_acceleration =
         extract_number(text, "MPC_ACC_DECOUPLE") != 0.0;
+
+    if (has_key(text, "position_control")) {
+        config.position_control.position_gain_xy = extract_number(text, "MPC_XY_P");
+        config.position_control.position_gain_z = extract_number(text, "MPC_Z_P");
+
+        config.position_control.velocity_p_xy = extract_number(text, "MPC_XY_VEL_P_ACC");
+        config.position_control.velocity_i_xy = extract_number(text, "MPC_XY_VEL_I_ACC");
+        config.position_control.velocity_d_xy = extract_number(text, "MPC_XY_VEL_D_ACC");
+
+        config.position_control.velocity_p_z = extract_number(text, "MPC_Z_VEL_P_ACC");
+        config.position_control.velocity_i_z = extract_number(text, "MPC_Z_VEL_I_ACC");
+        config.position_control.velocity_d_z = extract_number(text, "MPC_Z_VEL_D_ACC");
+
+        config.position_control.velocity_max_xy_mps = extract_number(text, "MPC_XY_VEL_MAX");
+        config.position_control.velocity_max_up_mps = extract_number(text, "MPC_Z_VEL_MAX_UP");
+        config.position_control.velocity_max_down_mps = extract_number(text, "MPC_Z_VEL_MAX_DN");
+
+        config.position_control.tilt_limit_rad = extract_number(text, "MPC_TILTMAX_AIR");
+        config.position_control.hover_thrust = extract_number(text, "MPC_THR_HOVER");
+        config.position_control.thrust_min = extract_number(text, "MPC_THR_MIN");
+        config.position_control.thrust_max = extract_number(text, "MPC_THR_MAX");
+        config.position_control.horizontal_thrust_margin = extract_number(text, "MPC_THR_XY_MARG");
+        config.position_control.decouple_horizontal_and_vertical_acceleration =
+            extract_number(text, "MPC_ACC_DECOUPLE") != 0.0;
+    }
 
     config.rate_control.gains.roll.p = extract_number(text, "MC_ROLLRATE_P");
     config.rate_control.gains.roll.i = extract_number(text, "MC_ROLLRATE_I");

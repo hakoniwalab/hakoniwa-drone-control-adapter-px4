@@ -6,6 +6,7 @@
 #include "hakoniwa/drone/control_adapter/px4_attitude_control_backend.hpp"
 #include "hakoniwa/drone/control_adapter/px4_control_allocation_backend.hpp"
 #include "hakoniwa/drone/control_adapter/px4_horizontal_position_control_backend.hpp"
+#include "hakoniwa/drone/control_adapter/px4_position_control_3d_backend.hpp"
 #include "hakoniwa/drone/control_adapter/px4_rate_control_backend.hpp"
 
 namespace hakoniwa::drone::control_adapter {
@@ -14,6 +15,7 @@ struct Px4ControllerRuntimeConfig {
     double altitude_hz{0.0};
     double attitude_hz{0.0};
     double horizontal_hz{0.0};
+    double position_hz{0.0};
     double rate_hz{0.0};
 };
 
@@ -23,6 +25,7 @@ struct Px4ControllerConfig {
     Px4AttitudeControlBackendConfig attitude_control{};
     Px4ControlAllocationBackendConfig control_allocation{};
     Px4HorizontalPositionControlBackendConfig horizontal_control{};
+    Px4PositionControl3DBackendConfig position_control{};
     Px4RateControlBackendConfig rate_control{};
 };
 
