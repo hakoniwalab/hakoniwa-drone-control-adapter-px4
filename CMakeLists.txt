@@ -22,6 +22,7 @@ add_library(hakoniwa_drone_control_adapter_px4 STATIC
     src/px4_control_allocation_hakoniwa_converter.cpp
     src/px4_control_allocation_backend.cpp
     src/px4_horizontal_position_control_backend.cpp
+    src/px4_position_control_3d_backend.cpp
     src/px4_rate_control_backend.cpp
     ${PX4_ROOT}/src/lib/control_allocation/control_allocation/ControlAllocation.cpp
     ${PX4_ROOT}/src/lib/control_allocation/control_allocation/ControlAllocationPseudoInverse.cpp
@@ -152,6 +153,20 @@ target_link_libraries(px4_horizontal_position_control_backend_smoke
 add_test(
     NAME px4_horizontal_position_control_backend_smoke
     COMMAND px4_horizontal_position_control_backend_smoke
+)
+
+add_executable(px4_position_control_3d_backend_smoke
+    test/px4_position_control_3d_backend_smoke.cpp
+)
+
+target_link_libraries(px4_position_control_3d_backend_smoke
+    PRIVATE
+        hakoniwa_drone_control_adapter_px4
+)
+
+add_test(
+    NAME px4_position_control_3d_backend_smoke
+    COMMAND px4_position_control_3d_backend_smoke
 )
 
 add_executable(px4_control_allocation_backend_smoke
