@@ -32,28 +32,52 @@ int main()
     require(nearly_equal(config.runtime.altitude_hz, 1000.0), "unexpected altitude_hz");
     require(nearly_equal(config.runtime.attitude_hz, 1000.0), "unexpected attitude_hz");
     require(nearly_equal(config.runtime.horizontal_hz, 1000.0), "unexpected horizontal_hz");
+    require(nearly_equal(config.runtime.position_hz, 1000.0), "unexpected position_hz");
     require(nearly_equal(config.runtime.rate_hz, 1000.0), "unexpected rate_hz");
+
     require(nearly_equal(config.altitude_control.position_gain_z, 10.0), "unexpected altitude pos p");
     require(nearly_equal(config.altitude_control.velocity_p_z, 15.0), "unexpected altitude vel p");
     require(nearly_equal(config.altitude_control.velocity_d_z, 10.0), "unexpected altitude vel d");
     require(nearly_equal(config.altitude_control.velocity_max_up_mps, 10.0), "unexpected altitude vel up");
     require(nearly_equal(config.altitude_control.hover_thrust, 0.5), "unexpected hover thrust");
     require(nearly_equal(config.altitude_control.thrust_max, 0.9), "unexpected thrust max");
+
+    require(nearly_equal(config.position_control.position_gain_xy, 6.0), "unexpected position-control xy p");
+    require(nearly_equal(config.position_control.position_gain_z, 10.0), "unexpected position-control z p");
+    require(nearly_equal(config.position_control.velocity_p_xy, 10.0), "unexpected position-control xy vel p");
+    require(nearly_equal(config.position_control.velocity_i_xy, 0.0), "unexpected position-control xy vel i");
+    require(nearly_equal(config.position_control.velocity_d_xy, 0.1), "unexpected position-control xy vel d");
+    require(nearly_equal(config.position_control.velocity_p_z, 15.0), "unexpected position-control z vel p");
+    require(nearly_equal(config.position_control.velocity_i_z, 0.0), "unexpected position-control z vel i");
+    require(nearly_equal(config.position_control.velocity_d_z, 10.0), "unexpected position-control z vel d");
+    require(nearly_equal(config.position_control.velocity_max_xy_mps, 20.0), "unexpected position-control xy vel max");
+    require(nearly_equal(config.position_control.velocity_max_up_mps, 10.0), "unexpected position-control z vel up");
+    require(nearly_equal(config.position_control.velocity_max_down_mps, 10.0), "unexpected position-control z vel down");
+    require(nearly_equal(config.position_control.tilt_limit_rad, 0.2617993877991494), "unexpected position-control tilt limit");
+    require(nearly_equal(config.position_control.horizontal_thrust_margin, 0.3), "unexpected position-control horizontal thrust margin");
+    require(nearly_equal(config.position_control.hover_thrust, 0.5), "unexpected position-control hover thrust");
+    require(nearly_equal(config.position_control.thrust_min, 0.1), "unexpected position-control thrust min");
+    require(nearly_equal(config.position_control.thrust_max, 0.9), "unexpected position-control thrust max");
+    require(config.position_control.decouple_horizontal_and_vertical_acceleration, "unexpected position-control decouple flag");
+
     require(nearly_equal(config.attitude_control.proportional_gains.roll, 2.5), "unexpected attitude roll p");
     require(nearly_equal(config.attitude_control.proportional_gains.pitch, 2.5), "unexpected attitude pitch p");
     require(nearly_equal(config.attitude_control.proportional_gains.yaw, 0.1), "unexpected attitude yaw p");
     require(nearly_equal(config.attitude_control.yaw_weight, 0.4), "unexpected yaw weight");
     require(nearly_equal(config.attitude_control.rate_limits.roll_rad_sec, 314.1592653589793), "unexpected roll rate limit");
     require(nearly_equal(config.attitude_control.rate_limits.yaw_rad_sec, 31.41592653589793), "unexpected yaw rate limit");
+
     require(config.control_allocation.normalize_rpy, "unexpected control allocation normalize_rpy");
     require(!config.control_allocation.metric_allocation, "unexpected control allocation metric_allocation");
     require(config.control_allocation.update_normalization_scale, "unexpected control allocation normalization scale update");
+
     require(nearly_equal(config.horizontal_control.position_gain_xy, 6.0), "unexpected horizontal pos p");
     require(nearly_equal(config.horizontal_control.velocity_p_xy, 10.0), "unexpected horizontal vel p");
     require(nearly_equal(config.horizontal_control.velocity_d_xy, 0.1), "unexpected horizontal vel d");
     require(nearly_equal(config.horizontal_control.velocity_max_xy_mps, 20.0), "unexpected horizontal vel max");
     require(nearly_equal(config.horizontal_control.tilt_limit_rad, 0.2617993877991494), "unexpected tilt limit");
     require(nearly_equal(config.horizontal_control.horizontal_thrust_margin, 0.3), "unexpected horizontal thrust margin");
+
     require(nearly_equal(config.rate_control.gains.roll.p, 1.5), "unexpected roll p");
     require(nearly_equal(config.rate_control.gains.pitch.d, 0.02), "unexpected pitch d");
     require(nearly_equal(config.rate_control.gains.yaw.p, 0.452), "unexpected yaw p");
