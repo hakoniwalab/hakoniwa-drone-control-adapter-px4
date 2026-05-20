@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "altitude_control": {
+  "common": {
     "extra": {
       "MPC_THR_HOVER": 0.5,
       "MPC_THR_MAX": 0.9,
@@ -20,12 +20,9 @@
       "CA_UPDATE_NORMALIZATION_SCALE": 1.0
     }
   },
-  "horizontal_control": {
+  "position_control": {
     "extra": {
       "MPC_ACC_DECOUPLE": 1.0,
-      "MPC_THR_HOVER": 0.5,
-      "MPC_THR_MAX": 0.9,
-      "MPC_THR_MIN": 0.1,
       "MPC_THR_XY_MARG": 0.3
     }
   },

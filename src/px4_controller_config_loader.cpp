@@ -32,10 +32,67 @@ double extract_number(const std::string& text, const char* key)
     return std::stod(match[1].str());
 }
 
+double extract_scoped_number(
+    const std::string& text,
+    const char* outer_key,
+    const char* inner_key,
+    const char* key)
+{
+    const std::string number_pattern = "([-+]?(?:\\d+\\.?\\d*|\\d*\\.\\d+)(?:[eE][-+]?\\d+)?)";
+    const std::regex pattern(
+        "\"" + std::string(outer_key) + "\"\\s*:\\s*\\{[\\s\\S]*?"
+        "\"" + std::string(inner_key) + "\"\\s*:\\s*\\{[\\s\\S]*?"
+        "\"" + std::string(key) + "\"\\s*:\\s*" + number_pattern);
+    std::smatch match;
+
+    if (!std::regex_search(text, match, pattern)) {
+        throw std::runtime_error(
+            std::string("missing required scoped config key: ") + outer_key + "." + inner_key + "." + key);
+    }
+
+    return std::stod(match[1].str());
+}
+
 bool has_key(const std::string& text, const char* key)
 {
     const std::regex pattern("\"" + std::string(key) + "\"\\s*:");
     return std::regex_search(text, pattern);
+}
+
+bool has_scoped_key(const std::string& text, const char* outer_key, const char* inner_key, const char* key)
+{
+    const std::regex pattern(
+        "\"" + std::string(outer_key) + "\"\\s*:\\s*\\{[\\s\\S]*?"
+        "\"" + std::string(inner_key) + "\"\\s*:\\s*\\{[\\s\\S]*?"
+        "\"" + std::string(key) + "\"\\s*:");
+    return std::regex_search(text, pattern);
+}
+
+double extract_common_or_section_or_legacy_parameter_number(
+    const std::string& text,
+    const char* section_key,
+    const char* key)
+{
+    if (has_scoped_key(text, "common", "parameters", key)) {
+        return extract_scoped_number(text, "common", "parameters", key);
+    }
+    if (section_key != nullptr && has_scoped_key(text, section_key, "parameters", key)) {
+        return extract_scoped_number(text, section_key, "parameters", key);
+    }
+    if (section_key != nullptr &&
+        std::string(section_key) != "position_control" &&
+        has_scoped_key(text, "position_control", "parameters", key)) {
+        return extract_scoped_number(text, "position_control", "parameters", key);
+    }
+    return extract_number(text, key);
+}
+
+double extract_position_or_legacy_parameter_number(const std::string& text, const char* key)
+{
+    if (has_scoped_key(text, "position_control", "parameters", key)) {
+        return extract_scoped_number(text, "position_control", "parameters", key);
+    }
+    return extract_number(text, key);
 }
 
 }  // namespace
@@ -57,15 +114,18 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
         : 0.0;
     config.runtime.rate_hz = extract_number(text, "rate_hz");
 
-    config.altitude_control.position_gain_z = extract_number(text, "MPC_Z_P");
-    config.altitude_control.velocity_p_z = extract_number(text, "MPC_Z_VEL_P_ACC");
-    config.altitude_control.velocity_i_z = extract_number(text, "MPC_Z_VEL_I_ACC");
-    config.altitude_control.velocity_d_z = extract_number(text, "MPC_Z_VEL_D_ACC");
-    config.altitude_control.velocity_max_up_mps = extract_number(text, "MPC_Z_VEL_MAX_UP");
-    config.altitude_control.velocity_max_down_mps = extract_number(text, "MPC_Z_VEL_MAX_DN");
-    config.altitude_control.hover_thrust = extract_number(text, "MPC_THR_HOVER");
-    config.altitude_control.thrust_min = extract_number(text, "MPC_THR_MIN");
-    config.altitude_control.thrust_max = extract_number(text, "MPC_THR_MAX");
+    config.altitude_control.position_gain_z = extract_position_or_legacy_parameter_number(text, "MPC_Z_P");
+    config.altitude_control.velocity_p_z = extract_position_or_legacy_parameter_number(text, "MPC_Z_VEL_P_ACC");
+    config.altitude_control.velocity_i_z = extract_position_or_legacy_parameter_number(text, "MPC_Z_VEL_I_ACC");
+    config.altitude_control.velocity_d_z = extract_position_or_legacy_parameter_number(text, "MPC_Z_VEL_D_ACC");
+    config.altitude_control.velocity_max_up_mps = extract_position_or_legacy_parameter_number(text, "MPC_Z_VEL_MAX_UP");
+    config.altitude_control.velocity_max_down_mps = extract_position_or_legacy_parameter_number(text, "MPC_Z_VEL_MAX_DN");
+    config.altitude_control.hover_thrust =
+        extract_common_or_section_or_legacy_parameter_number(text, "position_control", "MPC_THR_HOVER");
+    config.altitude_control.thrust_min =
+        extract_common_or_section_or_legacy_parameter_number(text, "position_control", "MPC_THR_MIN");
+    config.altitude_control.thrust_max =
+        extract_common_or_section_or_legacy_parameter_number(text, "position_control", "MPC_THR_MAX");
 
     config.attitude_control.proportional_gains.roll = extract_number(text, "MC_ROLL_P");
     config.attitude_control.proportional_gains.pitch = extract_number(text, "MC_PITCH_P");
@@ -80,45 +140,50 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
     config.control_allocation.update_normalization_scale =
         extract_number(text, "CA_UPDATE_NORMALIZATION_SCALE") != 0.0;
     config.control_allocation.hover_duty = extract_number(text, "CA_HOVER_DUTY");
-    config.control_allocation.vehicle_mass_kg = extract_number(text, "MASS");
-    config.control_allocation.gravity_mps2 = extract_number(text, "GRAVITY");
 
-    config.horizontal_control.position_gain_xy = extract_number(text, "MPC_XY_P");
-    config.horizontal_control.velocity_p_xy = extract_number(text, "MPC_XY_VEL_P_ACC");
-    config.horizontal_control.velocity_i_xy = extract_number(text, "MPC_XY_VEL_I_ACC");
-    config.horizontal_control.velocity_d_xy = extract_number(text, "MPC_XY_VEL_D_ACC");
-    config.horizontal_control.velocity_max_xy_mps = extract_number(text, "MPC_XY_VEL_MAX");
-    config.horizontal_control.tilt_limit_rad = extract_number(text, "MPC_TILTMAX_AIR");
-    config.horizontal_control.horizontal_thrust_margin = extract_number(text, "MPC_THR_XY_MARG");
-    config.horizontal_control.hover_thrust = extract_number(text, "MPC_THR_HOVER");
-    config.horizontal_control.thrust_min = extract_number(text, "MPC_THR_MIN");
-    config.horizontal_control.thrust_max = extract_number(text, "MPC_THR_MAX");
+    config.horizontal_control.position_gain_xy = extract_position_or_legacy_parameter_number(text, "MPC_XY_P");
+    config.horizontal_control.velocity_p_xy = extract_position_or_legacy_parameter_number(text, "MPC_XY_VEL_P_ACC");
+    config.horizontal_control.velocity_i_xy = extract_position_or_legacy_parameter_number(text, "MPC_XY_VEL_I_ACC");
+    config.horizontal_control.velocity_d_xy = extract_position_or_legacy_parameter_number(text, "MPC_XY_VEL_D_ACC");
+    config.horizontal_control.velocity_max_xy_mps = extract_position_or_legacy_parameter_number(text, "MPC_XY_VEL_MAX");
+    config.horizontal_control.tilt_limit_rad = extract_position_or_legacy_parameter_number(text, "MPC_TILTMAX_AIR");
+    config.horizontal_control.horizontal_thrust_margin = extract_position_or_legacy_parameter_number(text, "MPC_THR_XY_MARG");
+    config.horizontal_control.hover_thrust =
+        extract_common_or_section_or_legacy_parameter_number(text, "position_control", "MPC_THR_HOVER");
+    config.horizontal_control.thrust_min =
+        extract_common_or_section_or_legacy_parameter_number(text, "position_control", "MPC_THR_MIN");
+    config.horizontal_control.thrust_max =
+        extract_common_or_section_or_legacy_parameter_number(text, "position_control", "MPC_THR_MAX");
     config.horizontal_control.decouple_horizontal_and_vertical_acceleration =
-        extract_number(text, "MPC_ACC_DECOUPLE") != 0.0;
+        extract_position_or_legacy_parameter_number(text, "MPC_ACC_DECOUPLE") != 0.0;
 
     if (has_key(text, "position_control")) {
-        config.position_control.position_gain_xy = extract_number(text, "MPC_XY_P");
-        config.position_control.position_gain_z = extract_number(text, "MPC_Z_P");
+        config.position_control.position_gain_xy = extract_position_or_legacy_parameter_number(text, "MPC_XY_P");
+        config.position_control.position_gain_z = extract_position_or_legacy_parameter_number(text, "MPC_Z_P");
 
-        config.position_control.velocity_p_xy = extract_number(text, "MPC_XY_VEL_P_ACC");
-        config.position_control.velocity_i_xy = extract_number(text, "MPC_XY_VEL_I_ACC");
-        config.position_control.velocity_d_xy = extract_number(text, "MPC_XY_VEL_D_ACC");
+        config.position_control.velocity_p_xy = extract_position_or_legacy_parameter_number(text, "MPC_XY_VEL_P_ACC");
+        config.position_control.velocity_i_xy = extract_position_or_legacy_parameter_number(text, "MPC_XY_VEL_I_ACC");
+        config.position_control.velocity_d_xy = extract_position_or_legacy_parameter_number(text, "MPC_XY_VEL_D_ACC");
 
-        config.position_control.velocity_p_z = extract_number(text, "MPC_Z_VEL_P_ACC");
-        config.position_control.velocity_i_z = extract_number(text, "MPC_Z_VEL_I_ACC");
-        config.position_control.velocity_d_z = extract_number(text, "MPC_Z_VEL_D_ACC");
+        config.position_control.velocity_p_z = extract_position_or_legacy_parameter_number(text, "MPC_Z_VEL_P_ACC");
+        config.position_control.velocity_i_z = extract_position_or_legacy_parameter_number(text, "MPC_Z_VEL_I_ACC");
+        config.position_control.velocity_d_z = extract_position_or_legacy_parameter_number(text, "MPC_Z_VEL_D_ACC");
 
-        config.position_control.velocity_max_xy_mps = extract_number(text, "MPC_XY_VEL_MAX");
-        config.position_control.velocity_max_up_mps = extract_number(text, "MPC_Z_VEL_MAX_UP");
-        config.position_control.velocity_max_down_mps = extract_number(text, "MPC_Z_VEL_MAX_DN");
+        config.position_control.velocity_max_xy_mps = extract_position_or_legacy_parameter_number(text, "MPC_XY_VEL_MAX");
+        config.position_control.velocity_max_up_mps = extract_position_or_legacy_parameter_number(text, "MPC_Z_VEL_MAX_UP");
+        config.position_control.velocity_max_down_mps = extract_position_or_legacy_parameter_number(text, "MPC_Z_VEL_MAX_DN");
 
-        config.position_control.tilt_limit_rad = extract_number(text, "MPC_TILTMAX_AIR");
-        config.position_control.hover_thrust = extract_number(text, "MPC_THR_HOVER");
-        config.position_control.thrust_min = extract_number(text, "MPC_THR_MIN");
-        config.position_control.thrust_max = extract_number(text, "MPC_THR_MAX");
-        config.position_control.horizontal_thrust_margin = extract_number(text, "MPC_THR_XY_MARG");
+        config.position_control.tilt_limit_rad = extract_position_or_legacy_parameter_number(text, "MPC_TILTMAX_AIR");
+        config.position_control.hover_thrust =
+            extract_common_or_section_or_legacy_parameter_number(text, "position_control", "MPC_THR_HOVER");
+        config.position_control.thrust_min =
+            extract_common_or_section_or_legacy_parameter_number(text, "position_control", "MPC_THR_MIN");
+        config.position_control.thrust_max =
+            extract_common_or_section_or_legacy_parameter_number(text, "position_control", "MPC_THR_MAX");
+        config.position_control.horizontal_thrust_margin =
+            extract_position_or_legacy_parameter_number(text, "MPC_THR_XY_MARG");
         config.position_control.decouple_horizontal_and_vertical_acceleration =
-            extract_number(text, "MPC_ACC_DECOUPLE") != 0.0;
+            extract_position_or_legacy_parameter_number(text, "MPC_ACC_DECOUPLE") != 0.0;
     }
 
     config.rate_control.gains.roll.p = extract_number(text, "MC_ROLLRATE_P");

@@ -100,17 +100,29 @@ Example high-level shape:
     "horizontal_hz": 250.0,
     "rate_hz": 250.0
   },
-  "altitude_control": {
+  "common": {
     "parameters": {
+      "MPC_THR_HOVER": 0.5,
+      "MPC_THR_MAX": 0.9,
+      "MPC_THR_MIN": 0.1
+    }
+  },
+  "position_control": {
+    "parameters": {
+      "MPC_ACC_DECOUPLE": 1.0,
+      "MPC_THR_XY_MARG": 0.3,
+      "MPC_TILTMAX_AIR": 0.2617993877991494,
+      "MPC_XY_P": 6.0,
+      "MPC_XY_VEL_P_ACC": 10.0,
+      "MPC_XY_VEL_I_ACC": 0.0,
+      "MPC_XY_VEL_D_ACC": 0.1,
+      "MPC_XY_VEL_MAX": 20.0,
       "MPC_Z_P": 10.0,
       "MPC_Z_VEL_P_ACC": 15.0,
       "MPC_Z_VEL_I_ACC": 0.0,
       "MPC_Z_VEL_D_ACC": 10.0,
       "MPC_Z_VEL_MAX_UP": 10.0,
-      "MPC_Z_VEL_MAX_DN": 10.0,
-      "MPC_THR_HOVER": 0.5,
-      "MPC_THR_MIN": 0.1,
-      "MPC_THR_MAX": 0.9
+      "MPC_Z_VEL_MAX_DN": 10.0
     }
   },
   "attitude_control": {
@@ -129,21 +141,6 @@ Example high-level shape:
       "CA_RPY_NORMALIZE": 1.0,
       "CA_METRIC_ALLOCATION": 0.0,
       "CA_UPDATE_NORMALIZATION_SCALE": 1.0
-    }
-  },
-  "horizontal_control": {
-    "parameters": {
-      "MPC_XY_P": 6.0,
-      "MPC_XY_VEL_P_ACC": 10.0,
-      "MPC_XY_VEL_I_ACC": 0.0,
-      "MPC_XY_VEL_D_ACC": 0.1,
-      "MPC_XY_VEL_MAX": 20.0,
-      "MPC_TILTMAX_AIR": 0.2617993877991494,
-      "MPC_THR_XY_MARG": 0.3,
-      "MPC_ACC_DECOUPLE": 1.0,
-      "MPC_THR_HOVER": 0.5,
-      "MPC_THR_MIN": 0.1,
-      "MPC_THR_MAX": 0.9
     }
   },
   "rate_control": {

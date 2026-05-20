@@ -60,8 +60,6 @@ ControlAllocationInput make_quadx_input()
 int main()
 {
     Px4ControlAllocationBackendConfig config{};
-    config.vehicle_mass_kg = 0.61079;
-    config.gravity_mps2 = 9.81;
     config.hover_duty = 0.120311;
     Px4ControlAllocationBackend backend(config);
 

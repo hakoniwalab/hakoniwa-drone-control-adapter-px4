@@ -121,44 +121,30 @@ def compose_attitude_control_parameters(
     }
 
 
-def compose_altitude_control_parameters(
+def compose_position_control_parameters(
     hakoniwa_params: dict[str, float],
     px4_extra: dict[str, float],
 ) -> dict[str, float]:
     max_spd = require(hakoniwa_params, "PID_ALT_MAX_SPD")
+    tilt_limit_deg = min(
+        require(hakoniwa_params, "PID_POS_MAX_ROLL"),
+        require(hakoniwa_params, "PID_POS_MAX_PITCH"),
+    )
     return {
+        "MPC_ACC_DECOUPLE": get_optional(px4_extra, "MPC_ACC_DECOUPLE", 1.0),
+        "MPC_THR_XY_MARG": get_optional(px4_extra, "MPC_THR_XY_MARG", 0.3),
+        "MPC_TILTMAX_AIR": tilt_limit_deg * 3.141592653589793 / 180.0,
+        "MPC_XY_P": require_same_value(hakoniwa_params, "PID_POS_X_Kp", "PID_POS_Y_Kp"),
+        "MPC_XY_VEL_P_ACC": require_same_value(hakoniwa_params, "PID_POS_VX_Kp", "PID_POS_VY_Kp"),
+        "MPC_XY_VEL_I_ACC": require_same_value(hakoniwa_params, "PID_POS_VX_Ki", "PID_POS_VY_Ki"),
+        "MPC_XY_VEL_D_ACC": require_same_value(hakoniwa_params, "PID_POS_VX_Kd", "PID_POS_VY_Kd"),
+        "MPC_XY_VEL_MAX": require(hakoniwa_params, "PID_POS_MAX_SPD"),
         "MPC_Z_P": require(hakoniwa_params, "PID_ALT_Kp"),
         "MPC_Z_VEL_P_ACC": require(hakoniwa_params, "PID_ALT_SPD_Kp"),
         "MPC_Z_VEL_I_ACC": require(hakoniwa_params, "PID_ALT_SPD_Ki"),
         "MPC_Z_VEL_D_ACC": require(hakoniwa_params, "PID_ALT_SPD_Kd"),
         "MPC_Z_VEL_MAX_UP": max_spd,
         "MPC_Z_VEL_MAX_DN": max_spd,
-        "MPC_THR_HOVER": get_optional(px4_extra, "MPC_THR_HOVER", 0.5),
-        "MPC_THR_MIN": get_optional(px4_extra, "MPC_THR_MIN", 0.1),
-        "MPC_THR_MAX": get_optional(px4_extra, "MPC_THR_MAX", 0.9),
-    }
-
-
-def compose_horizontal_control_parameters(
-    hakoniwa_params: dict[str, float],
-    px4_extra: dict[str, float],
-) -> dict[str, float]:
-    tilt_limit_deg = min(
-        require(hakoniwa_params, "PID_POS_MAX_ROLL"),
-        require(hakoniwa_params, "PID_POS_MAX_PITCH"),
-    )
-    return {
-        "MPC_XY_P": require_same_value(hakoniwa_params, "PID_POS_X_Kp", "PID_POS_Y_Kp"),
-        "MPC_XY_VEL_P_ACC": require_same_value(hakoniwa_params, "PID_POS_VX_Kp", "PID_POS_VY_Kp"),
-        "MPC_XY_VEL_I_ACC": require_same_value(hakoniwa_params, "PID_POS_VX_Ki", "PID_POS_VY_Ki"),
-        "MPC_XY_VEL_D_ACC": require_same_value(hakoniwa_params, "PID_POS_VX_Kd", "PID_POS_VY_Kd"),
-        "MPC_XY_VEL_MAX": require(hakoniwa_params, "PID_POS_MAX_SPD"),
-        "MPC_TILTMAX_AIR": tilt_limit_deg * 3.141592653589793 / 180.0,
-        "MPC_THR_XY_MARG": get_optional(px4_extra, "MPC_THR_XY_MARG", 0.3),
-        "MPC_ACC_DECOUPLE": get_optional(px4_extra, "MPC_ACC_DECOUPLE", 1.0),
-        "MPC_THR_HOVER": get_optional(px4_extra, "MPC_THR_HOVER", 0.5),
-        "MPC_THR_MIN": get_optional(px4_extra, "MPC_THR_MIN", 0.1),
-        "MPC_THR_MAX": get_optional(px4_extra, "MPC_THR_MAX", 0.9),
     }
 
 
@@ -171,8 +157,6 @@ def compose_control_allocation_parameters(
         "CA_METRIC_ALLOCATION": get_optional(px4_extra, "CA_METRIC_ALLOCATION", 0.0),
         "CA_UPDATE_NORMALIZATION_SCALE": get_optional(px4_extra, "CA_UPDATE_NORMALIZATION_SCALE", 1.0),
         "CA_HOVER_DUTY": get_optional(px4_extra, "CA_HOVER_DUTY", 0.120311),
-        "MASS": require(hakoniwa_params, "MASS"),
-        "GRAVITY": require(hakoniwa_params, "GRAVITY"),
     }
 
 
@@ -195,6 +179,18 @@ def compose_runtime(hakoniwa_params: dict[str, float]) -> dict[str, float]:
     }
 
 
+def merge_extra(common_extra: dict[str, float], section_extra: dict[str, float]) -> dict[str, float]:
+    return {**common_extra, **section_extra}
+
+
+def compose_common_parameters(px4_extra: dict[str, float]) -> dict[str, float]:
+    return {
+        "MPC_THR_HOVER": get_optional(px4_extra, "MPC_THR_HOVER", 0.5),
+        "MPC_THR_MAX": get_optional(px4_extra, "MPC_THR_MAX", 0.9),
+        "MPC_THR_MIN": get_optional(px4_extra, "MPC_THR_MIN", 0.1),
+    }
+
+
 def compose_config(
     hakoniwa_txt_path: Path,
     px4_extra_path: Path,
@@ -204,10 +200,10 @@ def compose_config(
 ) -> None:
     hakoniwa_params = parse_hakoniwa_txt(hakoniwa_txt_path)
     px4_extra_json = load_json(px4_extra_path)
-    altitude_extra = px4_extra_json.get("altitude_control", {}).get("extra", {})
+    common_extra = px4_extra_json.get("common", {}).get("extra", {})
+    position_extra = merge_extra(common_extra, px4_extra_json.get("position_control", {}).get("extra", {}))
     attitude_extra = px4_extra_json.get("attitude_control", {}).get("extra", {})
     control_allocation_extra = px4_extra_json.get("control_allocation", {}).get("extra", {})
-    horizontal_extra = px4_extra_json.get("horizontal_control", {}).get("extra", {})
     px4_extra = px4_extra_json.get("rate_control", {}).get("extra", {})
 
     config = {
@@ -217,10 +213,13 @@ def compose_config(
             "git_describe": PX4_GIT_DESCRIBE,
         },
         "runtime": compose_runtime(hakoniwa_params),
-        "altitude_control": {
-            "parameters": compose_altitude_control_parameters(
+        "common": {
+            "parameters": compose_common_parameters(common_extra),
+        },
+        "position_control": {
+            "parameters": compose_position_control_parameters(
                 hakoniwa_params,
-                altitude_extra,
+                position_extra,
             )
         },
         "attitude_control": {
@@ -233,12 +232,6 @@ def compose_config(
             "parameters": compose_control_allocation_parameters(
                 hakoniwa_params,
                 control_allocation_extra,
-            )
-        },
-        "horizontal_control": {
-            "parameters": compose_horizontal_control_parameters(
-                hakoniwa_params,
-                horizontal_extra,
             )
         },
         "rate_control": {

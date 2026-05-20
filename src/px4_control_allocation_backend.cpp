@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <iostream>
 
 #include "ControlAllocationPseudoInverse.hpp"
 
@@ -30,17 +29,6 @@ struct NormalizedAllocationModel {
     double yaw_torque_scale_nm{1.0};
 };
 
-double compute_hover_thrust_newton(const Px4ControlAllocationBackendConfig& config)
-{
-    return config.vehicle_mass_kg * config.gravity_mps2;
-}
-
-double compute_per_rotor_hover_thrust_newton(const Px4ControlAllocationBackendConfig& config, std::size_t actuator_count)
-{
-    const double count = (actuator_count > 0U) ? static_cast<double>(actuator_count) : 1.0;
-    return compute_hover_thrust_newton(config) / count;
-}
-
 double axis_scale_from_physical_effects(const std::array<double, kMaxActuatorCount>& values, std::size_t actuator_count)
 {
     double positive_sum = 0.0;
@@ -60,11 +48,9 @@ double axis_scale_from_physical_effects(const std::array<double, kMaxActuatorCou
 
 NormalizedAllocationModel build_normalized_allocation_model(
     const ControlAllocationInput& input,
-    std::size_t actuator_count,
-    const Px4ControlAllocationBackendConfig& config)
+    std::size_t actuator_count)
 {
     NormalizedAllocationModel model{};
-    const double per_rotor_hover_thrust_newton = compute_per_rotor_hover_thrust_newton(config, actuator_count);
     const float per_rotor_collective_effect = -1.0f / static_cast<float>(actuator_count);
 
     std::array<double, kMaxActuatorCount> roll_physical{};
@@ -96,8 +82,7 @@ NormalizedAllocationModel build_normalized_allocation_model(
         // directly in the allocator matrix; geometry and moment_ratio define
         // relative authority.
         const matrix::Vector3f physical_moment =
-            f32(per_rotor_hover_thrust_newton) * position.cross(axis) -
-            f32(per_rotor_hover_thrust_newton) * moment_ratio * axis;
+            position.cross(axis) - moment_ratio * axis;
 
         roll_physical[i] = static_cast<double>(physical_moment(0));
         pitch_physical[i] = static_cast<double>(physical_moment(1));
@@ -249,7 +234,7 @@ ControlAllocationOutput Px4ControlAllocationBackend::run(const ControlAllocation
     }
 
     const NormalizedAllocationModel model =
-        build_normalized_allocation_model(input, actuator_count, config_);
+        build_normalized_allocation_model(input, actuator_count);
 
     controller_->setEffectivenessMatrix(
         model.effectiveness,
@@ -286,31 +271,6 @@ ControlAllocationOutput Px4ControlAllocationBackend::run(const ControlAllocation
         * model.yaw_torque_scale_nm;
     output.status.unallocated_thrust_body_z = static_cast<double>(
         control_sp(ControlAllocation::ControlAxis::THRUST_Z) - allocated(ControlAllocation::ControlAxis::THRUST_Z));
-
-#if 0
-    std::cout << "[Px4Allocation] thrust_body_z=" << input.command.thrust.body_z
-              << " torque=(" << input.command.torque_x << "," << input.command.torque_y << "," << input.command.torque_z << ")"
-              << " torque_scale=(" << model.roll_torque_scale_nm << "," << model.pitch_torque_scale_nm << "," << model.yaw_torque_scale_nm << ")"
-              << " hover_duty=" << config_.hover_duty
-              << " clipped=" << output.status.clipped
-              << " unalloc_thrust_z=" << output.status.unallocated_thrust_body_z
-              << " actuator_count=" << output.actuator_commands.count
-              << " actuator_ratio=";
-    for (std::size_t i = 0; i < actuator_count; ++i) {
-        if (i > 0U) {
-            std::cout << ",";
-        }
-        std::cout << clipped(i);
-    }
-    std::cout << " actuators=";
-    for (std::size_t i = 0; i < output.actuator_commands.count; ++i) {
-        if (i > 0U) {
-            std::cout << ",";
-        }
-        std::cout << output.actuator_commands.values[i];
-    }
-    std::cout << std::endl;
-#endif
 
     return output;
 }
