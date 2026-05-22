@@ -48,9 +48,11 @@ This repository also manages the public adapter contract as a git submodule.
 
 - Submodule path: `thirdparty/hakoniwa-drone-control-adapter`
 - Upstream: `https://github.com/hakoniwalab/hakoniwa-drone-control-adapter.git`
+- Pinned revision: managed via this repository's submodule state
 
 - Submodule path: `thirdparty/PX4-Autopilot`
 - Upstream: `https://github.com/PX4/PX4-Autopilot.git`
+- Pinned revision: `a1726d316a` (`v1.17.0-alpha1-1702-ga1726d316a`)
 
 Current pinned submodule revision:
 
@@ -63,6 +65,140 @@ Policy:
   rather than a sibling workspace checkout.
 - Prefer tracking upstream PX4 without local source patches.
 - If Hakoniwa-specific changes become necessary, record them explicitly in this repository rather than relying on an unmanaged workspace copy.
+
+## License And Upstream Sources
+
+This repository keeps third-party source provenance and license boundaries
+explicit.
+
+Repository-level license:
+
+- This repository's own code is licensed under MIT.
+- See [LICENSE](LICENSE).
+
+Upstream-managed sources:
+
+- `thirdparty/hakoniwa-drone-control-adapter`
+  - upstream public adapter contract
+  - used as a git submodule
+  - upstream: `https://github.com/hakoniwalab/hakoniwa-drone-control-adapter.git`
+  - upstream license: MIT
+  - see `thirdparty/hakoniwa-drone-control-adapter/LICENSE`
+
+- `thirdparty/PX4-Autopilot`
+  - upstream PX4 control implementation source
+  - used as a git submodule
+  - upstream: `https://github.com/PX4/PX4-Autopilot.git`
+  - pinned revision: `a1726d316a` (`v1.17.0-alpha1-1702-ga1726d316a`)
+  - upstream license: BSD 3-Clause
+  - see `thirdparty/PX4-Autopilot/LICENSE`
+
+What this repository adds on top:
+
+- adapter wrapper implementations in `src/`
+- PX4 config loading and composition glue
+- build integration and local compatibility shims
+- tests, examples, and investigation documents
+
+PX4 source files currently compiled by this repository:
+
+- `thirdparty/PX4-Autopilot/src/lib/rate_control/rate_control.cpp`
+- `thirdparty/PX4-Autopilot/src/modules/mc_att_control/AttitudeControl/AttitudeControl.cpp`
+- `thirdparty/PX4-Autopilot/src/modules/mc_pos_control/PositionControl/ControlMath.cpp`
+- `thirdparty/PX4-Autopilot/src/modules/mc_pos_control/PositionControl/PositionControl.cpp`
+- `thirdparty/PX4-Autopilot/src/lib/control_allocation/control_allocation/ControlAllocation.cpp`
+- `thirdparty/PX4-Autopilot/src/lib/control_allocation/control_allocation/ControlAllocationPseudoInverse.cpp`
+
+PX4 headers and support code currently used by this repository include:
+
+- `rate_control.hpp`
+- `AttitudeControl.hpp`
+- `PositionControl.hpp`
+- `ControlAllocationPseudoInverse.hpp`
+- PX4 matrix / mathlib / control allocation support headers required by the
+  above modules
+
+PX4-facing headers directly included from adapter-side implementation code:
+
+- `src/px4_rate_control_backend.cpp`
+  - `rate_control.hpp`
+- `src/px4_attitude_control_backend.cpp`
+  - `AttitudeControl.hpp`
+- `src/px4_altitude_control_backend.cpp`
+  - `PositionControl.hpp`
+- `src/px4_horizontal_position_control_backend.cpp`
+  - `PositionControl.hpp`
+- `src/px4_position_control_3d_backend.cpp`
+  - `PositionControl.hpp`
+- `src/px4_control_allocation_backend.cpp`
+  - `ControlAllocationPseudoInverse.hpp`
+
+Local compatibility headers shipped by this repository for PX4 integration:
+
+- `include/px4_platform_common/defines.h`
+- `include/uORB/topics/control_allocator_status.h`
+- `include/uORB/topics/rate_ctrl_status.h`
+- `include/uORB/topics/trajectory_setpoint.h`
+- `include/uORB/topics/vehicle_attitude_setpoint.h`
+- `include/uORB/topics/vehicle_local_position_setpoint.h`
+
+License grouping:
+
+- the repository's own code in `src/`, `include/`, `tools/`, `test/`, and
+  `docs/` is MIT
+- the public adapter contract submodule is MIT
+- the currently imported PX4 implementation files listed above all come from
+  upstream PX4 and therefore all share the upstream BSD 3-Clause license
+
+This means the PX4-derived portion used by this repository is internally
+license-consistent as upstream PX4 source, while the adapter-side integration
+code remains MIT.
+
+License check status:
+
+- The imported PX4 `.cpp` files listed above were verified as upstream PX4
+  source covered by the BSD 3-Clause license, checked against the pinned
+  revision `a1726d316a` (`v1.17.0-alpha1-1702-ga1726d316a`).
+- the directly used PX4 headers listed above are treated as part of that same
+  upstream PX4 BSD 3-Clause source set
+- PX4 matrix, mathlib, and control allocation support headers transitively
+  included by the above were also verified as BSD 3-Clause upstream PX4
+  source.
+- No GPL-licensed PX4 source files are compiled or linked by this repository.
+  This was verified against the files listed above.
+- the currently compiled PX4 implementation files are limited to the files
+  listed above
+- when the CMake build adds or removes PX4 source files, this list must be
+  updated in the same change
+- TODO: add a CI check that cross-validates the PX4 source file list in
+  `CMakeLists.txt` against this README to enforce this policy automatically.
+- the local compatibility headers under `include/px4_platform_common/` and
+  `include/uORB/topics/` are repository-side shim headers, so they are not
+  claimed here as upstream BSD files; they remain part of this repository's
+  own MIT-licensed integration layer unless explicitly replaced by upstream
+  copies later
+- These headers are local compatibility shims written for build compatibility.
+  They are not copied from upstream PX4 source files.
+
+License intent:
+
+- keep upstream PX4 source traceable as upstream PX4 source
+- keep adapter-side original code traceable as this repository's MIT-licensed
+  code
+- avoid relying on opaque sibling-workspace copies or unrecorded local edits
+- keep any future Hakoniwa-specific PX4-side changes explicit and reviewable in
+  this repository
+
+Practical interpretation:
+
+- if you redistribute this repository, preserve this repository's MIT license
+  notice
+- if you redistribute PX4-derived source or binaries, also preserve the BSD
+  3-Clause notice and conditions from upstream PX4
+- binary redistribution should include both this repository's MIT license
+  notice and the upstream PX4 BSD 3-Clause license notice
+- the submodules remain governed by their own upstream licenses; this README is
+  a provenance summary, not a replacement for those license texts
 
 ## Build
 
