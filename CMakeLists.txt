@@ -31,6 +31,9 @@ add_library(hakoniwa_drone_control_adapter_px4 STATIC
     ${PX4_ROOT}/src/modules/mc_att_control/AttitudeControl/AttitudeControl.cpp
     ${PX4_ROOT}/src/lib/rate_control/rate_control.cpp
 )
+set_target_properties(hakoniwa_drone_control_adapter_px4 PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+)
 
 add_library(hakoniwa_drone_control_adapter_px4::hakoniwa_drone_control_adapter_px4 ALIAS
     hakoniwa_drone_control_adapter_px4)
