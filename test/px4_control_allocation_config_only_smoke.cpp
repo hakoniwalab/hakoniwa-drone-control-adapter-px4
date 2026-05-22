@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <iostream>
+#include <cmath>
 
 #include "hakoniwa/drone/control_adapter/px4_control_allocation_backend.hpp"
 #include "hakoniwa/drone/control_adapter/px4_controller_config_loader.hpp"
