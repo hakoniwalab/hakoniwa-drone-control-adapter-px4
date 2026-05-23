@@ -76,6 +76,10 @@ void Px4EkfAdapter::apply_sensor_policy()
     fusion->baro.enabled = true;
     fusion->mag.available = true;
     fusion->mag.enabled = true;
+
+    auto* params = ekf_->getParamHandle();
+    params->ekf2_mag_decl = static_cast<float>(config_.mag_declination_deg);
+    params->ekf2_decl_type = static_cast<int32_t>(GeoDeclinationMask::SAVE_GEO_DECL);
 }
 
 void Px4EkfAdapter::push_imu(const EkfImuInput& input, double dt_sec)
@@ -201,6 +205,26 @@ EkfEstimatedState Px4EkfAdapter::get_estimated_state() const
     state.attitude_valid = ekf_->attitude_valid();
     state.local_position_valid = ekf_->isLocalHorizontalPositionValid() && ekf_->isLocalVerticalPositionValid();
     state.global_position_valid = ekf_->isGlobalHorizontalPositionValid() && ekf_->isGlobalVerticalPositionValid();
+
+    state.active_horizontal_aiding_sources = ekf_->getNumberOfActiveHorizontalAidingSources();
+    state.active_horizontal_position_aiding_sources = ekf_->getNumberOfActiveHorizontalPositionAidingSources();
+    state.active_horizontal_velocity_aiding_sources = ekf_->getNumberOfActiveHorizontalVelocityAidingSources();
+    state.active_vertical_position_aiding_sources = ekf_->getNumberOfActiveVerticalPositionAidingSources();
+    state.active_vertical_velocity_aiding_sources = ekf_->getNumberOfActiveVerticalVelocityAidingSources();
+
+    const auto &control_flags = ekf_->control_status_flags();
+    state.gnss_pos_fused = control_flags.gnss_pos;
+    state.gnss_vel_fused = control_flags.gnss_vel;
+    state.gps_hgt_fused = control_flags.gps_hgt;
+
+    state.horizontal_velocity_innovation_test_ratio =
+        static_cast<double>(ekf_->getHorizontalVelocityInnovationTestRatio());
+    state.vertical_velocity_innovation_test_ratio =
+        static_cast<double>(ekf_->getVerticalVelocityInnovationTestRatio());
+    state.horizontal_position_innovation_test_ratio =
+        static_cast<double>(ekf_->getHorizontalPositionInnovationTestRatio());
+    state.vertical_position_innovation_test_ratio =
+        static_cast<double>(ekf_->getVerticalPositionInnovationTestRatio());
     return state;
 }
 
