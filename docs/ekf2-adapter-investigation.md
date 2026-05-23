@@ -54,6 +54,26 @@ These provide:
 - state getters such as `getQuaternion()`, `getVelocity()`, `getPosition()`,
   `getLatLonAlt()`
 
+## Upstream Source Policy
+
+The PX4 upstream source tree under:
+
+- `thirdparty/PX4-Autopilot`
+
+should be treated as read-only.
+
+Adapter integration policy:
+
+- do not patch PX4 source files directly
+- add local compatibility headers under this repository when PX4 expects
+  generated/platform-specific headers
+- add thin wrapper code in this repository for Hakoniwa-facing orchestration
+- resolve standalone build gaps through local CMake glue, include paths,
+  compile definitions, or source-specific compile options
+
+This keeps the EKF extraction auditable and makes it easier to rebase to newer
+PX4 revisions later.
+
 ## Hakoniwa Input Contract
 
 The adapter should treat the following as its primary sensor inputs:
