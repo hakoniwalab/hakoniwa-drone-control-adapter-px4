@@ -28,6 +28,7 @@ private:
     EkfAdapterConfig config_{};
     ::Ekf* ekf_{nullptr};
     bool initialized_{false};
+    std::uint64_t last_input_time_usec_{0};
 };
 
 }  // namespace hakoniwa::drone::control_adapter

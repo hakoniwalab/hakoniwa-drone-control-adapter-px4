@@ -3,33 +3,15 @@
 #include "EKF/common.h"
 #include "EKF/ekf.h"
 
+#include <cmath>
 #include <limits>
 
 namespace hakoniwa::drone::control_adapter {
-
-namespace {
-
-double deg_e7_to_deg(std::int32_t deg_e7)
-{
-    return static_cast<double>(deg_e7) * 1.0e-7;
-}
-
-double mm_to_m(std::int32_t mm)
-{
-    return static_cast<double>(mm) * 1.0e-3;
-}
-
-float cmps_to_mps(std::int16_t cmps)
-{
-    return static_cast<float>(cmps) * 1.0e-2f;
-}
 
 float clamp_non_negative(double value)
 {
     return static_cast<float>((value < 0.0) ? 0.0 : value);
 }
-
-} // namespace
 
 Px4EkfAdapter::Px4EkfAdapter(const EkfAdapterConfig& config)
     : config_(config)
@@ -48,6 +30,7 @@ void Px4EkfAdapter::reset()
     delete ekf_;
     ekf_ = new ::Ekf();
     initialized_ = false;
+    last_input_time_usec_ = 0;
 }
 
 void Px4EkfAdapter::set_config(const EkfAdapterConfig& config)
@@ -81,7 +64,12 @@ void Px4EkfAdapter::apply_sensor_policy()
 
 void Px4EkfAdapter::push_hil_sensor(const EkfHilSensorInput& input, double dt_sec)
 {
+    if (!std::isfinite(dt_sec) || dt_sec <= 0.0 || dt_sec > 1.0) {
+        return;
+    }
+
     ensure_initialized(input.time_usec);
+    last_input_time_usec_ = input.time_usec;
 
     estimator::imuSample imu{};
     imu.time_us = input.time_usec;
@@ -114,6 +102,7 @@ void Px4EkfAdapter::push_hil_sensor(const EkfHilSensorInput& input, double dt_se
 void Px4EkfAdapter::push_hil_gps(const EkfHilGpsInput& input)
 {
     ensure_initialized(input.time_usec);
+    last_input_time_usec_ = input.time_usec;
 
     estimator::gnssSample gps{};
     gps.time_us = input.time_usec;
@@ -153,6 +142,8 @@ EkfEstimatedState Px4EkfAdapter::get_estimated_state() const
     if (!initialized_) {
         return state;
     }
+
+    state.time_usec = last_input_time_usec_;
 
     const auto quat = ekf_->getQuaternion();
     const auto vel = ekf_->getVelocity();
