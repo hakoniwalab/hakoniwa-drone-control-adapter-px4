@@ -62,7 +62,7 @@ void Px4EkfAdapter::apply_sensor_policy()
     fusion->mag.enabled = true;
 }
 
-void Px4EkfAdapter::push_hil_sensor(const EkfHilSensorInput& input, double dt_sec)
+void Px4EkfAdapter::push_imu(const EkfImuInput& input, double dt_sec)
 {
     if (!std::isfinite(dt_sec) || dt_sec <= 0.0 || dt_sec > 1.0) {
         return;
@@ -84,6 +84,12 @@ void Px4EkfAdapter::push_hil_sensor(const EkfHilSensorInput& input, double dt_se
     imu.delta_ang_dt = static_cast<float>(dt_sec);
     imu.delta_vel_dt = static_cast<float>(dt_sec);
     ekf_->setIMUData(imu);
+}
+
+void Px4EkfAdapter::push_mag(const EkfMagInput& input)
+{
+    ensure_initialized(input.time_usec);
+    last_input_time_usec_ = input.time_usec;
 
     estimator::magSample mag{};
     mag.time_us = input.time_usec;
@@ -92,6 +98,12 @@ void Px4EkfAdapter::push_hil_sensor(const EkfHilSensorInput& input, double dt_se
         static_cast<float>(input.ymag_gauss),
         static_cast<float>(input.zmag_gauss));
     ekf_->setMagData(mag);
+}
+
+void Px4EkfAdapter::push_baro(const EkfBaroInput& input)
+{
+    ensure_initialized(input.time_usec);
+    last_input_time_usec_ = input.time_usec;
 
     estimator::baroSample baro{};
     baro.time_us = input.time_usec;
@@ -99,7 +111,7 @@ void Px4EkfAdapter::push_hil_sensor(const EkfHilSensorInput& input, double dt_se
     ekf_->setBaroData(baro);
 }
 
-void Px4EkfAdapter::push_hil_gps(const EkfHilGpsInput& input)
+void Px4EkfAdapter::push_gps(const EkfHilGpsInput& input)
 {
     ensure_initialized(input.time_usec);
     last_input_time_usec_ = input.time_usec;

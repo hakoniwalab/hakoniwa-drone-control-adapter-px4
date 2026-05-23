@@ -14,8 +14,10 @@ public:
     void reset() override;
     void set_config(const EkfAdapterConfig& config) override;
 
-    void push_hil_sensor(const EkfHilSensorInput& input, double dt_sec) override;
-    void push_hil_gps(const EkfHilGpsInput& input) override;
+    void push_imu(const EkfImuInput& input, double dt_sec) override;
+    void push_mag(const EkfMagInput& input) override;
+    void push_baro(const EkfBaroInput& input) override;
+    void push_gps(const EkfHilGpsInput& input) override;
 
     void update() override;
 
