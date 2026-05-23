@@ -13,6 +13,8 @@ public:
 
     void reset() override;
     void set_config(const EkfAdapterConfig& config) override;
+    void set_in_air_status(bool in_air) override;
+    void set_vehicle_at_rest(bool at_rest) override;
 
     void push_imu(const EkfImuInput& input, double dt_sec) override;
     void push_mag(const EkfMagInput& input) override;

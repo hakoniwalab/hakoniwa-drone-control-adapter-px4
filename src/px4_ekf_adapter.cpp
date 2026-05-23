@@ -38,6 +38,22 @@ void Px4EkfAdapter::set_config(const EkfAdapterConfig& config)
     config_ = config;
 }
 
+void Px4EkfAdapter::set_in_air_status(bool in_air)
+{
+    if (!ekf_) {
+        return;
+    }
+    ekf_->set_in_air_status(in_air);
+}
+
+void Px4EkfAdapter::set_vehicle_at_rest(bool at_rest)
+{
+    if (!ekf_) {
+        return;
+    }
+    ekf_->set_vehicle_at_rest(at_rest);
+}
+
 void Px4EkfAdapter::ensure_initialized(std::uint64_t time_usec)
 {
     if (initialized_) {
