@@ -80,6 +80,77 @@ void Px4EkfAdapter::apply_sensor_policy()
     auto* params = ekf_->getParamHandle();
     params->ekf2_mag_decl = static_cast<float>(config_.mag_declination_deg);
     params->ekf2_decl_type = static_cast<int32_t>(GeoDeclinationMask::SAVE_GEO_DECL);
+
+    const auto& px4 = config_.px4_params;
+    if (px4.ekf2_gps_ctrl) {
+        params->ekf2_gps_ctrl = *px4.ekf2_gps_ctrl;
+    }
+    if (px4.ekf2_gps_check) {
+        params->ekf2_gps_check = *px4.ekf2_gps_check;
+    }
+    if (px4.ekf2_req_eph) {
+        params->ekf2_req_eph = static_cast<float>(*px4.ekf2_req_eph);
+    }
+    if (px4.ekf2_req_epv) {
+        params->ekf2_req_epv = static_cast<float>(*px4.ekf2_req_epv);
+    }
+    if (px4.ekf2_req_sacc) {
+        params->ekf2_req_sacc = static_cast<float>(*px4.ekf2_req_sacc);
+    }
+    if (px4.ekf2_req_nsats) {
+        params->ekf2_req_nsats = *px4.ekf2_req_nsats;
+    }
+    if (px4.ekf2_req_pdop) {
+        params->ekf2_req_pdop = static_cast<float>(*px4.ekf2_req_pdop);
+    }
+    if (px4.ekf2_req_fix) {
+        params->ekf2_req_fix = *px4.ekf2_req_fix;
+    }
+    if (px4.ekf2_gps_p_noise) {
+        params->ekf2_gps_p_noise = static_cast<float>(*px4.ekf2_gps_p_noise);
+    }
+    if (px4.ekf2_gps_v_noise) {
+        params->ekf2_gps_v_noise = static_cast<float>(*px4.ekf2_gps_v_noise);
+    }
+    if (px4.ekf2_gps_p_gate) {
+        params->ekf2_gps_p_gate = static_cast<float>(*px4.ekf2_gps_p_gate);
+    }
+    if (px4.ekf2_gps_v_gate) {
+        params->ekf2_gps_v_gate = static_cast<float>(*px4.ekf2_gps_v_gate);
+    }
+    if (px4.ekf2_hgt_ref) {
+        params->ekf2_hgt_ref = *px4.ekf2_hgt_ref;
+    }
+    if (px4.ekf2_baro_ctrl) {
+        params->ekf2_baro_ctrl = *px4.ekf2_baro_ctrl;
+    }
+    if (px4.ekf2_baro_noise) {
+        params->ekf2_baro_noise = static_cast<float>(*px4.ekf2_baro_noise);
+    }
+    if (px4.ekf2_baro_gate) {
+        params->ekf2_baro_gate = static_cast<float>(*px4.ekf2_baro_gate);
+    }
+    if (px4.ekf2_mag_decl) {
+        params->ekf2_mag_decl = static_cast<float>(*px4.ekf2_mag_decl);
+    }
+    if (px4.ekf2_decl_type) {
+        params->ekf2_decl_type = *px4.ekf2_decl_type;
+    }
+    if (px4.ekf2_mag_type) {
+        params->ekf2_mag_type = static_cast<MagFuseType>(*px4.ekf2_mag_type);
+    }
+    if (px4.ekf2_head_noise) {
+        params->ekf2_head_noise = static_cast<float>(*px4.ekf2_head_noise);
+    }
+    if (px4.ekf2_hdg_gate) {
+        params->ekf2_hdg_gate = static_cast<float>(*px4.ekf2_hdg_gate);
+    }
+    if (px4.ekf2_mag_noise) {
+        params->ekf2_mag_noise = static_cast<float>(*px4.ekf2_mag_noise);
+    }
+    if (px4.ekf2_mag_gate) {
+        params->ekf2_mag_gate = static_cast<float>(*px4.ekf2_mag_gate);
+    }
 }
 
 void Px4EkfAdapter::push_imu(const EkfImuInput& input, double dt_sec)
@@ -147,7 +218,7 @@ void Px4EkfAdapter::push_gps(const EkfHilGpsInput& input)
         static_cast<float>(input.vd_mps));
     gps.hacc = clamp_non_negative(input.eph_m);
     gps.vacc = clamp_non_negative(input.epv_m);
-    gps.sacc = clamp_non_negative(config_.gps_quality.sacc_mps);
+    gps.sacc = clamp_non_negative(input.sacc_mps);
     gps.fix_type = static_cast<std::uint8_t>(input.fix_type);
     gps.nsats = static_cast<std::uint8_t>((input.satellites_visible < 0) ? 0 : input.satellites_visible);
     gps.pdop = 0.0f;
