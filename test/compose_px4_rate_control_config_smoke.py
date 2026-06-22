@@ -8,7 +8,7 @@ from pathlib import Path
 
 def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
-    hakoniwa_txt = repo_root.parent.parent / "config" / "controller" / "param-api-mixer-mujoco.txt"
+    hakoniwa_txt = repo_root / "test" / "fixtures" / "hakoniwa-controller-params.txt"
     extra_json = repo_root / "config" / "px4-controller-extra.sample.json"
     tool = repo_root / "tools" / "compose_px4_rate_control_config.py"
 
