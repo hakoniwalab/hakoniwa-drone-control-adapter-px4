@@ -38,6 +38,14 @@ void Px4EkfAdapter::set_config(const EkfAdapterConfig& config)
     config_ = config;
 }
 
+void Px4EkfAdapter::set_armed_status(bool armed)
+{
+    // PX4 EKF2 exposes in-air and at-rest status, but no independent arming
+    // input at this adapter boundary. Keep the generic state explicit without
+    // incorrectly mapping it to a different EKF2 flag.
+    (void)armed;
+}
+
 void Px4EkfAdapter::set_in_air_status(bool in_air)
 {
     if (!ekf_) {

@@ -13,6 +13,7 @@ public:
 
     void reset() override;
     void set_config(const EkfAdapterConfig& config) override;
+    void set_armed_status(bool armed) override;
     void set_in_air_status(bool in_air) override;
     void set_vehicle_at_rest(bool at_rest) override;
 
