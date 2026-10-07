@@ -4,13 +4,30 @@
 #include <cmath>
 #include <stdexcept>
 
-#include "ControlAllocationPseudoInverse.hpp"
+#include "ControlAllocationSequentialDesaturation.hpp"
 
 namespace hakoniwa::drone::control_adapter {
 
+namespace px4_stub {
+
+// Storage for the PX4 parameters that px4_stubs/px4_platform_common/module_params.h
+// exposes to PX4 library code.  PX4 parameters are process-global, and so is this.
+int32_t& param_int_storage(int id)
+{
+    static int32_t values[px4::params::PARAM_COUNT] = {};
+    if (id < 0 || id >= px4::params::PARAM_COUNT) {
+        throw std::out_of_range("unknown PX4 stub parameter id");
+    }
+    return values[id];
+}
+
+}  // namespace px4_stub
+
 namespace {
 
-using Px4Allocator = ControlAllocationPseudoInverse;
+// PX4's multicopter allocator: thrust and roll/pitch keep priority, and yaw
+// is reduced first when the actuators saturate (MC_AIRMODE selects the mode).
+using Px4Allocator = ControlAllocationSequentialDesaturation;
 using Px4ActuatorVector = ControlAllocation::ActuatorVector;
 using Px4ControlVector = matrix::Vector<float, ControlAllocation::NUM_AXES>;
 using Px4EffectivenessMatrix = matrix::Matrix<float, ControlAllocation::NUM_AXES, ControlAllocation::NUM_ACTUATORS>;
@@ -77,7 +94,7 @@ NormalizedAllocationModel build_normalized_allocation_model(
 
         const float moment_ratio = f32(geometry.moment_ratio);
 
-        // Public actuator output is duty/normalized command in [0,1].
+        // Public actuator output is normalized rotor thrust (not duty).
         // One full actuator command is interpreted as one rotor producing
         // hover-equivalent thrust. Physical Ct/Cq magnitudes are not used
         // directly in the allocator matrix; geometry and moment_ratio define
@@ -95,6 +112,9 @@ NormalizedAllocationModel build_normalized_allocation_model(
             per_rotor_collective_effect * ((axis(2) < 0.0f) ? 1.0f : -1.0f);
     }
 
+    // Per-axis scaling keeps the effectiveness rows well conditioned.  With
+    // CA_RPY_NORMALIZE the allocator renormalizes the mix columns, so these
+    // scales do not change the allocation and are not applied to the demand.
     model.roll_torque_scale_nm = axis_scale_from_physical_effects(roll_physical, actuator_count);
     model.pitch_torque_scale_nm = axis_scale_from_physical_effects(pitch_physical, actuator_count);
     model.yaw_torque_scale_nm = axis_scale_from_physical_effects(yaw_physical, actuator_count);
@@ -111,27 +131,37 @@ NormalizedAllocationModel build_normalized_allocation_model(
     return model;
 }
 
+// The allocator runs in PX4 actuator units (1.0 = one rotor at maximum
+// thrust), so PX4 constants such as the desaturation yaw margin keep their
+// meaning.  The public interface uses hover units (1.0 = one rotor at hover
+// thrust); MPC_THR_HOVER = T_hover / T_max converts between them.
+//
+// PX4 RateControl torque is already a normalized demand in PX4 units and goes
+// in unchanged.  With CA_RPY_NORMALIZE the allocator renormalizes each torque
+// column, so the geometry scales on the effectiveness rows cancel out and must
+// not be applied to the demand.  Thrust body_z (hover = -1) becomes
+// body_z * MPC_THR_HOVER (hover = -MPC_THR_HOVER), as in PX4.
 Px4ControlVector to_control_vector(
     const ThrustTorqueCommand& command,
-    const NormalizedAllocationModel& model)
+    double hover_thrust)
 {
     Px4ControlVector control{};
-    control(ControlAllocation::ControlAxis::ROLL) = f32(command.torque_x / model.roll_torque_scale_nm);
-    control(ControlAllocation::ControlAxis::PITCH) = f32(command.torque_y / model.pitch_torque_scale_nm);
-    control(ControlAllocation::ControlAxis::YAW) = f32(command.torque_z / model.yaw_torque_scale_nm);
-    control(ControlAllocation::ControlAxis::THRUST_Z) = f32(command.thrust.body_z);
+    control(ControlAllocation::ControlAxis::ROLL) = f32(command.torque_x);
+    control(ControlAllocation::ControlAxis::PITCH) = f32(command.torque_y);
+    control(ControlAllocation::ControlAxis::YAW) = f32(command.torque_z);
+    control(ControlAllocation::ControlAxis::THRUST_Z) = f32(command.thrust.body_z * hover_thrust);
     return control;
 }
 
 Px4ActuatorVector to_trim_vector(
     const ControlAllocationInput& input,
     std::size_t actuator_count,
-    const Px4ControlAllocationBackendConfig& config)
+    double hover_units_to_px4)
 {
     Px4ActuatorVector trim{};
 
     for (std::size_t i = 0; i < actuator_count; ++i) {
-        trim(i) = f32(input.actuators[i].trim / config.hover_duty);
+        trim(i) = f32(input.actuators[i].trim * hover_units_to_px4);
     }
 
     return trim;
@@ -140,12 +170,12 @@ Px4ActuatorVector to_trim_vector(
 Px4ActuatorVector to_linearization_point_vector(
     const ControlAllocationInput& input,
     std::size_t actuator_count,
-    const Px4ControlAllocationBackendConfig& config)
+    double hover_units_to_px4)
 {
     Px4ActuatorVector linearization{};
 
     for (std::size_t i = 0; i < actuator_count; ++i) {
-        linearization(i) = f32(input.actuators[i].linearization_point / config.hover_duty);
+        linearization(i) = f32(input.actuators[i].linearization_point * hover_units_to_px4);
     }
 
     return linearization;
@@ -154,12 +184,12 @@ Px4ActuatorVector to_linearization_point_vector(
 Px4ActuatorVector to_min_vector(
     const ControlAllocationInput& input,
     std::size_t actuator_count,
-    const Px4ControlAllocationBackendConfig& config)
+    double hover_units_to_px4)
 {
     Px4ActuatorVector actuator_min{};
 
     for (std::size_t i = 0; i < actuator_count; ++i) {
-        actuator_min(i) = f32(input.actuators[i].limit.min / config.hover_duty);
+        actuator_min(i) = f32(input.actuators[i].limit.min * hover_units_to_px4);
     }
 
     return actuator_min;
@@ -168,12 +198,12 @@ Px4ActuatorVector to_min_vector(
 Px4ActuatorVector to_max_vector(
     const ControlAllocationInput& input,
     std::size_t actuator_count,
-    const Px4ControlAllocationBackendConfig& config)
+    double hover_units_to_px4)
 {
     Px4ActuatorVector actuator_max{};
 
     for (std::size_t i = 0; i < actuator_count; ++i) {
-        actuator_max(i) = f32(input.actuators[i].limit.max / config.hover_duty);
+        actuator_max(i) = f32(input.actuators[i].limit.max * hover_units_to_px4);
     }
 
     return actuator_max;
@@ -187,6 +217,16 @@ bool did_clip(const Px4ActuatorVector& before, const Px4ActuatorVector& after, s
         }
     }
 
+    return false;
+}
+
+bool has_unallocated_control(const Px4ControlVector& setpoint, const Px4ControlVector& allocated)
+{
+    for (int axis = 0; axis < ControlAllocation::NUM_AXES; ++axis) {
+        if (std::fabs(setpoint(axis) - allocated(axis)) > kClipEpsilon) {
+            return true;
+        }
+    }
     return false;
 }
 
@@ -230,22 +270,21 @@ ControlAllocationOutput Px4ControlAllocationBackend::run(const ControlAllocation
     if (actuator_count == 0U) {
         return make_unallocated_output(input, actuator_count);
     }
-    if (!(std::isfinite(config_.hover_duty) && config_.hover_duty > kMinScale)) {
-        throw std::runtime_error("Px4ControlAllocationBackend requires positive hover_duty");
-    }
 
     const NormalizedAllocationModel model =
         build_normalized_allocation_model(input, actuator_count);
+    const double h = config_.hover_thrust;  // hover units -> PX4 units
 
     controller_->setEffectivenessMatrix(
         model.effectiveness,
-        to_trim_vector(input, actuator_count, config_),
-        to_linearization_point_vector(input, actuator_count, config_),
+        to_trim_vector(input, actuator_count, h),
+        to_linearization_point_vector(input, actuator_count, h),
         static_cast<int>(actuator_count),
         config_.update_normalization_scale);
-    controller_->setActuatorMin(to_min_vector(input, actuator_count, config_));
-    controller_->setActuatorMax(to_max_vector(input, actuator_count, config_));
-    controller_->setControlSetpoint(to_control_vector(input.command, model));
+    controller_->setActuatorMin(to_min_vector(input, actuator_count, h));
+    controller_->setActuatorMax(to_max_vector(input, actuator_count, h));
+    px4_stub::set_param_int(px4::params::MC_AIRMODE, config_.airmode);
+    controller_->setControlSetpoint(to_control_vector(input.command, config_.hover_thrust));
     controller_->allocate();
 
     const Px4ActuatorVector unclipped = controller_->getActuatorSetpoint();
@@ -257,21 +296,26 @@ ControlAllocationOutput Px4ControlAllocationBackend::run(const ControlAllocation
     ControlAllocationOutput output{};
     output.actuator_commands.count = actuator_count;
     for (std::size_t i = 0; i < actuator_count; ++i) {
-        output.actuator_commands.values[i] = clipped(i) * config_.hover_duty;
+        // Normalized rotor thrust: 1.0 is one rotor at hover thrust.  The
+        // caller converts it to the plant actuator command (for example PWM
+        // duty through the motor model); it is not a duty value.
+        output.actuator_commands.values[i] = static_cast<double>(clipped(i)) / h;
     }
 
-    output.status.clipped = did_clip(unclipped, clipped, actuator_count);
+    // Sequential desaturation keeps the outputs inside the limits by giving up
+    // part of the demand, so a saturated allocation shows up as an unallocated
+    // control rather than as clipping.  Report either as clipped.
+    output.status.clipped = did_clip(unclipped, clipped, actuator_count)
+        || has_unallocated_control(control_sp, allocated);
     output.status.unallocated_torque_x = static_cast<double>(
-        control_sp(ControlAllocation::ControlAxis::ROLL) - allocated(ControlAllocation::ControlAxis::ROLL))
-        * model.roll_torque_scale_nm;
+        control_sp(ControlAllocation::ControlAxis::ROLL) - allocated(ControlAllocation::ControlAxis::ROLL));
     output.status.unallocated_torque_y = static_cast<double>(
-        control_sp(ControlAllocation::ControlAxis::PITCH) - allocated(ControlAllocation::ControlAxis::PITCH))
-        * model.pitch_torque_scale_nm;
+        control_sp(ControlAllocation::ControlAxis::PITCH) - allocated(ControlAllocation::ControlAxis::PITCH));
     output.status.unallocated_torque_z = static_cast<double>(
-        control_sp(ControlAllocation::ControlAxis::YAW) - allocated(ControlAllocation::ControlAxis::YAW))
-        * model.yaw_torque_scale_nm;
+        control_sp(ControlAllocation::ControlAxis::YAW) - allocated(ControlAllocation::ControlAxis::YAW));
     output.status.unallocated_thrust_body_z = static_cast<double>(
-        control_sp(ControlAllocation::ControlAxis::THRUST_Z) - allocated(ControlAllocation::ControlAxis::THRUST_Z));
+        control_sp(ControlAllocation::ControlAxis::THRUST_Z) - allocated(ControlAllocation::ControlAxis::THRUST_Z))
+        / h;
 
     return output;
 }
@@ -284,6 +328,13 @@ void Px4ControlAllocationBackend::set_config(const Px4ControlAllocationBackendCo
 
 void Px4ControlAllocationBackend::apply_config()
 {
+    if (!std::isfinite(config_.hover_thrust) || config_.hover_thrust <= 0.0 || config_.hover_thrust > 1.0) {
+        throw std::invalid_argument(
+            "Px4ControlAllocationBackend requires hover_thrust (MPC_THR_HOVER) in (0, 1]");
+    }
+    if (config_.airmode < 0 || config_.airmode > 2) {
+        throw std::invalid_argument("Px4ControlAllocationBackend requires airmode (MC_AIRMODE) 0, 1 or 2");
+    }
     controller_->setNormalizeRPY(config_.normalize_rpy);
     controller_->setMetricAllocation(config_.metric_allocation);
 }

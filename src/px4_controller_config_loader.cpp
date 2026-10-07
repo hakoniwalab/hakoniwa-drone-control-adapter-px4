@@ -139,7 +139,13 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
     config.control_allocation.metric_allocation = extract_number(text, "CA_METRIC_ALLOCATION") != 0.0;
     config.control_allocation.update_normalization_scale =
         extract_number(text, "CA_UPDATE_NORMALIZATION_SCALE") != 0.0;
-    config.control_allocation.hover_duty = extract_number(text, "CA_HOVER_DUTY");
+    // CA_HOVER_DUTY is obsolete: allocation outputs normalized rotor thrust.
+    // MC_AIRMODE is optional; PX4's default 0 disables air mode.
+    if (has_key(text, "MC_AIRMODE")) {
+        config.control_allocation.airmode = static_cast<int>(extract_number(text, "MC_AIRMODE"));
+    }
+    config.control_allocation.hover_thrust =
+        extract_common_or_section_or_legacy_parameter_number(text, "position_control", "MPC_THR_HOVER");
 
     config.horizontal_control.position_gain_xy = extract_position_or_legacy_parameter_number(text, "MPC_XY_P");
     config.horizontal_control.velocity_p_xy = extract_position_or_legacy_parameter_number(text, "MPC_XY_VEL_P_ACC");

@@ -35,6 +35,7 @@ add_library(hakoniwa_drone_control_adapter_px4 STATIC
     ${PX4_ROOT}/src/lib/ringbuffer/Ringbuffer.cpp
     ${PX4_ROOT}/src/lib/control_allocation/control_allocation/ControlAllocation.cpp
     ${PX4_ROOT}/src/lib/control_allocation/control_allocation/ControlAllocationPseudoInverse.cpp
+    ${PX4_ROOT}/src/lib/control_allocation/control_allocation/ControlAllocationSequentialDesaturation.cpp
     ${PX4_ROOT}/src/modules/mc_pos_control/PositionControl/ControlMath.cpp
     ${PX4_ROOT}/src/modules/mc_pos_control/PositionControl/PositionControl.cpp
     ${PX4_ROOT}/src/modules/mc_att_control/AttitudeControl/AttitudeControl.cpp
@@ -94,6 +95,9 @@ target_include_directories(hakoniwa_drone_control_adapter_px4
         $<BUILD_INTERFACE:${ADAPTER_ROOT}/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE
+        # Minimal px4_platform_common/module_params.h for
+        # ControlAllocationSequentialDesaturation (PX4 parameters are not built).
+        ${CMAKE_CURRENT_SOURCE_DIR}/px4_stubs
         ${PX4_ROOT}/src
         ${PX4_ROOT}/src/lib
         ${PX4_ROOT}/src/lib/control_allocation

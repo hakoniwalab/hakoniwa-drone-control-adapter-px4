@@ -1,6 +1,9 @@
 #include <cmath>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <sstream>
+#include <string>
 
 #include "hakoniwa/drone/control_adapter/px4_controller_config_loader.hpp"
 
@@ -19,6 +22,32 @@ void require(bool condition, const char* message)
         std::cerr << message << std::endl;
         std::exit(EXIT_FAILURE);
     }
+}
+
+std::string sample_config_text()
+{
+    std::ifstream input("../config/px4-controller-config.sample.json");
+    std::ostringstream buffer;
+    buffer << input.rdbuf();
+    return buffer.str();
+}
+
+void replace_once(std::string& text, const std::string& from, const std::string& to)
+{
+    const auto position = text.find(from);
+    require(position != std::string::npos, "test fixture marker was not found");
+    text.replace(position, from.size(), to);
+}
+
+void require_hover_source(
+    const Px4ControllerConfigLoader& loader,
+    const std::string& text,
+    double expected,
+    const char* message)
+{
+    const auto config = loader.load_from_text(text);
+    require(nearly_equal(config.altitude_control.hover_thrust, expected), message);
+    require(nearly_equal(config.control_allocation.hover_thrust, expected), message);
 }
 
 }  // namespace
@@ -70,6 +99,10 @@ int main()
     require(config.control_allocation.normalize_rpy, "unexpected control allocation normalize_rpy");
     require(!config.control_allocation.metric_allocation, "unexpected control allocation metric_allocation");
     require(config.control_allocation.update_normalization_scale, "unexpected control allocation normalization scale update");
+    require(config.control_allocation.airmode == 0,
+        "missing MC_AIRMODE must keep PX4 default zero");
+    require(nearly_equal(config.control_allocation.hover_thrust, 0.5),
+        "control allocation must receive common MPC_THR_HOVER");
 
     require(nearly_equal(config.horizontal_control.position_gain_xy, 6.0), "unexpected horizontal pos p");
     require(nearly_equal(config.horizontal_control.velocity_p_xy, 10.0), "unexpected horizontal vel p");
@@ -83,6 +116,36 @@ int main()
     require(nearly_equal(config.rate_control.gains.yaw.p, 0.452), "unexpected yaw p");
     require(nearly_equal(config.rate_control.feed_forward.roll, 0.0), "unexpected roll ff");
     require(nearly_equal(config.rate_control.integrator_limits.yaw_integrator, 0.2), "unexpected yaw int lim");
+
+    const std::string position_marker =
+        "  \"position_control\": {\n    \"parameters\": {\n";
+    const std::string position_with_hover =
+        position_marker + "      \"MPC_THR_HOVER\": 0.4,\n";
+    const std::string root_marker = "{\n";
+    const std::string root_with_hover = "{\n  \"MPC_THR_HOVER\": 0.3,\n";
+    const std::string common_hover = "      \"MPC_THR_HOVER\": 0.5,\n";
+
+    auto all_sources = sample_config_text();
+    replace_once(all_sources, position_marker, position_with_hover);
+    replace_once(all_sources, root_marker, root_with_hover);
+    require_hover_source(loader, all_sources, 0.5,
+        "common MPC_THR_HOVER must have highest priority");
+
+    auto position_and_legacy = all_sources;
+    replace_once(position_and_legacy, common_hover, "");
+    require_hover_source(loader, position_and_legacy, 0.4,
+        "position_control MPC_THR_HOVER must precede legacy");
+
+    auto legacy_only = sample_config_text();
+    replace_once(legacy_only, common_hover, "");
+    replace_once(legacy_only, root_marker, root_with_hover);
+    require_hover_source(loader, legacy_only, 0.3,
+        "legacy MPC_THR_HOVER must be the final fallback");
+
+    auto explicit_airmode = sample_config_text();
+    replace_once(explicit_airmode, root_marker, "{\n  \"MC_AIRMODE\": 2,\n");
+    require(loader.load_from_text(explicit_airmode).control_allocation.airmode == 2,
+        "explicit MC_AIRMODE must be loaded");
 
     std::cout << "loader smoke test passed" << std::endl;
     return EXIT_SUCCESS;
