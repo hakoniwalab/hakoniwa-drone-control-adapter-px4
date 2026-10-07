@@ -176,13 +176,15 @@ plant command is the caller's responsibility; Hakoniwa Drone PRO does it in
 ### Conversion chain
 
 ```text
-PX4 altitude / position control
-  thrust_body_z (PX4 units, hover = -MPC_THR_HOVER)
-      |  body_z = thrust_body_z / MPC_THR_HOVER          (px4_altitude_control_backend.cpp)
+PX4 altitude control:  thrust[2]      (NED vertical, tilt limit 0, no tilt compensation)
+PX4 position control 3D: thrust_body[2] (body Z, PX4 compensates the planned tilt)
+  (PX4 units, hover = -MPC_THR_HOVER)
+      |  body_z = value / MPC_THR_HOVER   (px4_altitude_control_backend.cpp,
+      |                                    px4_position_control_3d_backend.cpp)
       v
 Control Adapter contract
   command.thrust.body_z (hover = -1.0)
-      |  PX4 allocator, one internal actuator unit = one rotor at hover thrust
+      |  PX4 allocator in PX4 actuator units (1.0 = one rotor at maximum thrust)
       v
   actuator_commands: normalized rotor thrust u_i (hover = 1.0 per rotor)
       |  caller: plant conversion (Drone PRO: u -> thrust -> omega -> PWM duty)
@@ -235,6 +237,30 @@ of the mix matrix, so a demand of 1.0 moves each rotor by about 0.707
 (roll/pitch) and 1.0 (yaw) in PX4 units on a 4-rotor X frame, as on a real
 PX4 vehicle. `status.unallocated_torque_*` is returned in the input unit and
 `status.unallocated_thrust_body_z` in `body_z` units.
+
+### Reconstructing torque from the outputs
+
+The Control Link contract tests compare the physical torque produced by the
+outputs with the torque command. For this adapter the conversion from the
+normalized demand to N·m, per axis a (roll, pitch, yaw), is
+
+```text
+tau_phys_a = tau_cmd_a * S_a * T_max_per_rotor / s_a
+```
+
+- `m_i = position_i x axis_i - moment_ratio_i * axis_i` (physical moment arm of rotor i)
+- `S_a = max(sum of positive m_i,a, sum of negative -m_i,a)`
+  (`axis_scale_from_physical_effects`, the row scale of the effectiveness matrix)
+- `E`: rows `m_i,a / S_a` and the thrust row `-1/n`; `M = pinv(E)`
+- `s_roll = s_pitch = max(r_roll, r_pitch)`,
+  `r_a = sqrt(|M_col_a|^2 / (k_a / 2))`, `k_a` = number of `|M_i,a| > 1e-3`;
+  `s_yaw = max_i M_i,yaw` (PX4 `ControlAllocationPseudoInverse` scale with
+  `CA_RPY_NORMALIZE = 1`)
+- `T_max_per_rotor = T_hover_per_rotor / MPC_THR_HOVER`
+
+This follows from PX4's `getAllocatedControl() = (E (u_px4 - trim)) .* s` with
+trim 0. See `pro-docs/control-link/contract-test/interface-contract-test-spec.md`
+Appendix A in Drone PRO.
 
 ### Saturation
 
@@ -293,7 +319,11 @@ At the current implementation stage:
 - `Px4AttitudeControlBackend` already has a typed config surface
 - `Px4ControlAllocationBackend` already has a typed config surface
 - `Px4HorizontalPositionControlBackend` already has a typed config surface
+- `Px4PositionControl3DBackend` and `Px4EkfAdapter` are implemented (the loader
+  reads the `position_control` section)
 - the loader reads altitude, attitude, control-allocation, horizontal, and rate control sections
+- angle and rate limits are in SI units: `MPC_TILTMAX_AIR` in rad and
+  `MC_*RATE_MAX` in rad/s, unlike PX4's native degrees
 - the Python converter emits altitude, attitude, control-allocation, horizontal, and rate sections
 
 ## Runtime Mode And Config Responsibility

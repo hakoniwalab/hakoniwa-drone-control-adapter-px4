@@ -106,8 +106,9 @@ NormalizedAllocationModel build_normalized_allocation_model(
         pitch_physical[i] = static_cast<double>(physical_moment(1));
         yaw_physical[i] = static_cast<double>(physical_moment(2));
 
-        // One internal actuator unit means "this rotor produces hover thrust".
-        // Therefore each rotor contributes 1 / actuator_count of total vehicle hover.
+        // The thrust row is the share of the collective per rotor; the run()
+        // scaling by MPC_THR_HOVER puts the allocator in PX4 actuator units
+        // (1.0 = one rotor at maximum thrust).
         model.effectiveness(ControlAllocation::ControlAxis::THRUST_Z, i) =
             per_rotor_collective_effect * ((axis(2) < 0.0f) ? 1.0f : -1.0f);
     }
