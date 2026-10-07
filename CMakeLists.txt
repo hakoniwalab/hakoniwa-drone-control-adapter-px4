@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.16)
 
 project(hakoniwa_drone_control_adapter_px4 LANGUAGES CXX)
 
+# Default to an optimized build. Without a build type the PX4 EKF and
+# controllers were compiled without optimization, which slowed every
+# Drone PRO simulation that links this library.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
