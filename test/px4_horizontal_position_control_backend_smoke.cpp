@@ -85,5 +85,22 @@ int main()
     require(near_zero(position_hold.roll_rad), "expected zero-hold roll near zero");
     require(near_zero(position_hold.pitch_rad), "expected zero-hold pitch near zero");
 
+    Px4HorizontalPositionControlBackendConfig integral_config = config;
+    integral_config.velocity_p_xy = 0.0;
+    integral_config.velocity_i_xy = 1.0;
+    integral_config.velocity_d_xy = 0.0;
+    Px4HorizontalPositionControlBackend short_dt_backend(integral_config);
+    Px4HorizontalPositionControlBackend long_dt_backend(integral_config);
+    HorizontalPositionControlInput integral_input{};
+    integral_input.mode = HorizontalControlMode::Velocity;
+    integral_input.target_velocity.vx = 0.1;
+    (void)short_dt_backend.run(integral_input, 0.01);
+    (void)long_dt_backend.run(integral_input, 0.04);
+    const auto short_dt_output = short_dt_backend.run(integral_input, 0.01);
+    const auto long_dt_output = long_dt_backend.run(integral_input, 0.04);
+    require(
+        std::fabs(long_dt_output.pitch_rad) > std::fabs(short_dt_output.pitch_rad) * 3.5,
+        "horizontal integrator must use call dt_sec");
+
     return EXIT_SUCCESS;
 }

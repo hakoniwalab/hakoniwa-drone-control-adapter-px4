@@ -6,6 +6,7 @@
 #include <stdexcept>
 
 #include "hakoniwa/drone/control_adapter/px4_control_allocation_backend.hpp"
+#include "hakoniwa/drone/control_adapter/px4_rate_control_backend.hpp"
 
 using namespace hakoniwa::drone::control_adapter;
 
@@ -308,6 +309,29 @@ int main()
         set_airmode_threw = true;
     }
     require(set_airmode_threw, "set_config must reject airmode outside 0..2");
+
+    ControlAllocationInput no_actuators{};
+    no_actuators.command.thrust.body_z = -1.0;
+    const auto unallocated = backend.run(no_actuators);
+    require(unallocated.status.clipped,
+        "a wholly unallocated command must set status.clipped");
+    require(nearly_equal(unallocated.status.unallocated_thrust_body_z, -1.0),
+        "a wholly unallocated command must preserve body-z demand units");
+
+    Px4RateControlBackendConfig rate_config{};
+    rate_config.gains.roll.p = 0.1;
+    Px4RateControlBackend rate_backend(rate_config);
+    RateControlInput rate_input{};
+    rate_input.target.p = 0.1;
+    rate_input.dt_sec = 0.01;
+    const BodyTorqueCommand rate_torque = rate_backend.run(rate_input);
+    ControlAllocationInput pipeline_input = make_quadx_input();
+    pipeline_input.command.torque_x = rate_torque.x;
+    const auto pipeline_output = backend.run(pipeline_input);
+    require(nearly_equal(
+        allocated_roll(pipeline_output, config.hover_thrust),
+        rate_torque.x),
+        "PX4 RateControl and ControlAllocation torque units must match");
 
     return EXIT_SUCCESS;
 }

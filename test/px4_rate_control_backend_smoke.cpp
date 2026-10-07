@@ -69,5 +69,27 @@ int main()
         return EXIT_FAILURE;
     }
 
+    Px4RateControlBackendConfig integral_config{};
+    integral_config.gains.roll = {0.0, 1.0, 0.0};
+    integral_config.integrator_limits.roll_integrator = 1.0;
+    Px4RateControlBackend short_dt_backend(integral_config);
+    Px4RateControlBackend long_dt_backend(integral_config);
+
+    RateControlInput short_dt_input{};
+    short_dt_input.target.p = 0.1;
+    short_dt_input.dt_sec = 0.01;
+    RateControlInput long_dt_input = short_dt_input;
+    long_dt_input.dt_sec = 0.04;
+    (void)short_dt_backend.run(short_dt_input);
+    (void)long_dt_backend.run(long_dt_input);
+
+    const double short_integral = short_dt_backend.get_status().roll_integral;
+    const double long_integral = long_dt_backend.get_status().roll_integral;
+    if (!nearly_equal(short_integral, 0.001, 1e-6) ||
+        !nearly_equal(long_integral, 0.004, 1e-6)) {
+        std::cerr << "rate integrator did not use call dt_sec" << std::endl;
+        return EXIT_FAILURE;
+    }
+
     return EXIT_SUCCESS;
 }

@@ -240,6 +240,12 @@ ControlAllocationOutput make_unallocated_output(
     output.status.unallocated_torque_y = input.command.torque_y;
     output.status.unallocated_torque_z = input.command.torque_z;
     output.status.unallocated_thrust_body_z = input.command.thrust.body_z;
+    // Any part of the demand left unallocated counts as clipped (interface spec).
+    output.status.clipped =
+        output.status.unallocated_torque_x != 0.0 ||
+        output.status.unallocated_torque_y != 0.0 ||
+        output.status.unallocated_torque_z != 0.0 ||
+        output.status.unallocated_thrust_body_z != 0.0;
     return output;
 }
 
