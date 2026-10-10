@@ -212,6 +212,30 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
             extract_position_or_legacy_parameter_number(text, "MPC_THR_XY_MARG");
         config.position_control.decouple_horizontal_and_vertical_acceleration =
             extract_position_or_legacy_parameter_number(text, "MPC_ACC_DECOUPLE") != 0.0;
+
+        // PX4 Auto trajectory, optional with PX4's defaults; used only in a HAKO_EKF_IMU_ACCELERATION
+        // build (px4_position_control_3d_backend.hpp).
+        auto& trajectory = config.position_control.trajectory;
+        trajectory.enabled = has_key(text, "trajectory_generation")
+            && extract_number(text, "trajectory_generation") != 0.0;
+        const auto optional = [&text](const char* key, double& value) {
+            if (has_key(text, key)) {
+                value = extract_number(text, key);
+            }
+        };
+        optional("MPC_XY_CRUISE", trajectory.cruise_speed_mps);
+        optional("MPC_ACC_HOR", trajectory.acceleration_xy_mps2);
+        optional("MPC_JERK_AUTO", trajectory.jerk_mps3);
+        optional("MPC_XY_TRAJ_P", trajectory.trajectory_gain_xy);
+        optional("MPC_XY_ERR_MAX", trajectory.max_horizontal_error_m);
+        optional("NAV_MC_ALT_RAD", trajectory.vertical_acceptance_m);
+        optional("NAV_ACC_RAD", trajectory.target_acceptance_m);
+        optional("MPC_ACC_UP_MAX", trajectory.acceleration_up_mps2);
+        optional("MPC_ACC_DOWN_MAX", trajectory.acceleration_down_mps2);
+        optional("MPC_Z_V_AUTO_UP", trajectory.velocity_up_mps);
+        optional("MPC_Z_V_AUTO_DN", trajectory.velocity_down_mps);
+        optional("MPC_YAWRAUTO_MAX", trajectory.yaw_rate_max_deg_s);
+        optional("MPC_YAWRAUTO_ACC", trajectory.yaw_acceleration_max_deg_s2);
     }
 
     config.rate_control.gains.roll.p = extract_number(text, "MC_ROLLRATE_P");

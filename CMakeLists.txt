@@ -141,6 +141,12 @@ target_compile_definitions(hakoniwa_drone_control_adapter_px4
 option(HAKO_EKF_IMU_ACCELERATION "Apply PX4's IMU filters to the rate stage inputs" OFF)
 if(HAKO_EKF_IMU_ACCELERATION)
     target_compile_definitions(hakoniwa_drone_control_adapter_px4 PRIVATE HAKO_EKF_IMU_ACCELERATION)
+    # PX4's Auto trajectory (FlightTaskAuto's PositionSmoothing and HeadingSmoothing) in the 3D
+    # position stage, as PX4 SITL flies a reposition (px4_position_control_3d_backend.cpp).
+    target_sources(hakoniwa_drone_control_adapter_px4 PRIVATE
+        ${PX4_ROOT}/src/lib/motion_planning/PositionSmoothing.cpp
+        ${PX4_ROOT}/src/lib/motion_planning/VelocitySmoothing.cpp
+        ${PX4_ROOT}/src/lib/motion_planning/HeadingSmoothing.cpp)
 endif()
 
 install(

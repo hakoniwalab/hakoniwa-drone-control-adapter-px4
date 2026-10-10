@@ -3,6 +3,7 @@
 #include "EKF/common.h"
 #include "EKF/ekf.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -38,6 +39,15 @@ void Px4EkfAdapter::set_config(const EkfAdapterConfig& config)
     config_ = config;
 }
 
+void Px4EkfAdapter::set_sensor_delays_ms(double gps_delay_ms, double baro_delay_ms)
+{
+    gps_delay_ms_ = std::max(0.0, gps_delay_ms);
+    baro_delay_ms_ = std::max(0.0, baro_delay_ms);
+    if (initialized_) {
+        ekf_->getParamHandle()->ekf2_baro_delay = static_cast<float>(baro_delay_ms_);
+    }
+}
+
 void Px4EkfAdapter::set_armed_status(bool armed)
 {
     // PX4 EKF2 exposes in-air and at-rest status, but no independent arming
@@ -68,6 +78,12 @@ void Px4EkfAdapter::ensure_initialized(std::uint64_t time_usec)
         return;
     }
 
+    if (gps_delay_ms_ > 0.0 || baro_delay_ms_ > 0.0) {
+        // EKF2 sizes its buffers for the largest delay (EKF2.cpp); 110 ms is PX4's default.
+        auto* params = ekf_->getParamHandle();
+        params->ekf2_delay_max = static_cast<float>(
+            std::max({static_cast<double>(params->ekf2_delay_max), gps_delay_ms_, baro_delay_ms_}));
+    }
     ekf_->init(time_usec);
     apply_sensor_policy();
     ekf_->set_in_air_status(false);
@@ -86,6 +102,9 @@ void Px4EkfAdapter::apply_sensor_policy()
     fusion->mag.enabled = true;
 
     auto* params = ekf_->getParamHandle();
+    if (baro_delay_ms_ > 0.0) {
+        params->ekf2_baro_delay = static_cast<float>(baro_delay_ms_);
+    }
     params->ekf2_mag_decl = static_cast<float>(config_.mag_declination_deg);
     params->ekf2_decl_type = static_cast<int32_t>(GeoDeclinationMask::SAVE_GEO_DECL);
 
@@ -216,7 +235,8 @@ void Px4EkfAdapter::push_gps(const EkfHilGpsInput& input)
     last_input_time_usec_ = input.time_usec;
 
     estimator::gnssSample gps{};
-    gps.time_us = input.time_usec;
+    const auto gps_delay_usec = static_cast<std::uint64_t>(gps_delay_ms_ * 1000.0);
+    gps.time_us = input.time_usec > gps_delay_usec ? input.time_usec - gps_delay_usec : 0;
     gps.lat = input.lat_deg;
     gps.lon = input.lon_deg;
     gps.alt = static_cast<float>(input.alt_m);
