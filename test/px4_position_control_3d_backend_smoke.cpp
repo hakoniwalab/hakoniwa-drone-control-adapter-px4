@@ -131,5 +131,61 @@ int main()
             std::fabs(short_dt_output.debug_thrust_sp->x) * 3.5,
         "3D position integrator must use call dt_sec");
 
+#ifdef HAKO_EKF_IMU_ACCELERATION
+    Px4PositionControl3DBackendConfig trajectory_config = config;
+    trajectory_config.velocity_max_xy_mps = 5.0;
+    trajectory_config.trajectory.enabled = true;
+    Px4PositionControl3DBackendConfig direct_config = trajectory_config;
+    direct_config.trajectory.enabled = false;
+
+    PositionControl3DPositionInput distant_target{};
+    distant_target.state = hover_state;
+    distant_target.target_position = {30.0, 0.0, 0.0};
+    distant_target.target_yaw_rad = M_PI_2;
+
+    Px4PositionControl3DBackend direct_backend(direct_config);
+    Px4PositionControl3DBackend smoothed_backend(trajectory_config);
+    const auto direct = direct_backend.run_position(distant_target, 0.01);
+    const auto smoothed = smoothed_backend.run_position(distant_target, 0.01);
+    require(direct.debug_thrust_sp.has_value() && smoothed.debug_thrust_sp.has_value(),
+        "trajectory comparison requires thrust setpoints");
+    require(std::fabs(smoothed.debug_thrust_sp->x) < std::fabs(direct.debug_thrust_sp->x),
+        "enabled trajectory must soften the first position step");
+    require(smoothed.target_yaw_rate_rad_sec.has_value(),
+        "heading smoothing must publish a yaw-rate target");
+    require(*smoothed.target_yaw_rate_rad_sec > 0.0
+            && *smoothed.target_yaw_rate_rad_sec <= 20.0 * M_PI / 180.0 * 0.01 + 1e-5,
+        "heading smoothing must obey the yaw acceleration limit");
+
+    PositionControl3DPositionInput feedforward = distant_target;
+    feedforward.feedforward_velocity = Vector3D{0.2, 0.0, 0.0};
+    Px4PositionControl3DBackend feedforward_direct(direct_config);
+    Px4PositionControl3DBackend feedforward_smoothed(trajectory_config);
+    const auto ff_direct = feedforward_direct.run_position(feedforward, 0.01);
+    const auto ff_smoothed = feedforward_smoothed.run_position(feedforward, 0.01);
+    require(nearly_equal(ff_direct.debug_thrust_sp->x, ff_smoothed.debug_thrust_sp->x),
+        "feedforward position target must bypass trajectory generation");
+
+    PositionControl3DPositionInput partial = distant_target;
+    partial.target_position.z = NAN;
+    Px4PositionControl3DBackend partial_direct(direct_config);
+    Px4PositionControl3DBackend partial_smoothed(trajectory_config);
+    const auto nan_direct = partial_direct.run_position(partial, 0.01);
+    const auto nan_smoothed = partial_smoothed.run_position(partial, 0.01);
+    require(nearly_equal(nan_direct.debug_thrust_sp->x, nan_smoothed.debug_thrust_sp->x),
+        "partial position target must bypass trajectory generation");
+
+    smoothed_backend.reset();
+    const auto after_reset = smoothed_backend.run_position(distant_target, 0.01);
+    require(nearly_equal(after_reset.debug_thrust_sp->x, smoothed.debug_thrust_sp->x),
+        "reset must restart trajectory from the vehicle state");
+    PositionControl3DVelocityInput zero_velocity{};
+    zero_velocity.state = hover_state;
+    (void)smoothed_backend.run_velocity(zero_velocity, 0.01);
+    const auto after_velocity = smoothed_backend.run_position(distant_target, 0.01);
+    require(nearly_equal(after_velocity.debug_thrust_sp->x, smoothed.debug_thrust_sp->x),
+        "run_velocity must restart the next position trajectory");
+#endif
+
     return EXIT_SUCCESS;
 }

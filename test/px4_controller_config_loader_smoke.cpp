@@ -124,6 +124,14 @@ int main()
         "missing MPC_VEL_LP must keep PX4 default zero");
     require(nearly_equal(config.altitude_control.velocity_filter.velocity_derivative_cutoff_hz, 5.0),
         "missing MPC_VELD_LP must keep PX4 default 5 Hz");
+    require(!config.position_control.trajectory.enabled,
+        "missing trajectory_generation must keep trajectory disabled");
+    require(nearly_equal(config.position_control.trajectory.cruise_speed_mps, 5.0),
+        "missing MPC_XY_CRUISE must keep PX4 default");
+    require(nearly_equal(config.position_control.trajectory.jerk_mps3, 4.0),
+        "missing MPC_JERK_AUTO must keep PX4 default");
+    require(nearly_equal(config.position_control.trajectory.yaw_rate_max_deg_s, 60.0),
+        "missing MPC_YAWRAUTO_MAX must keep PX4 default");
 
     const std::string position_marker =
         "  \"position_control\": {\n    \"parameters\": {\n";
@@ -170,6 +178,39 @@ int main()
         "explicit MPC_VELD_LP must be shared by position stages");
     require(nearly_equal(filter_config.position_control.velocity_filter.velocity_derivative_cutoff_hz, 8.0),
         "explicit MPC_VELD_LP must be shared by the 3D position stage");
+
+    auto explicit_trajectory = sample_config_text();
+    replace_once(explicit_trajectory, position_marker,
+        position_marker
+        + "      \"trajectory_generation\": 1,\n"
+          "      \"MPC_XY_CRUISE\": 4.1,\n"
+          "      \"MPC_ACC_HOR\": 2.2,\n"
+          "      \"MPC_JERK_AUTO\": 3.3,\n"
+          "      \"MPC_XY_TRAJ_P\": 0.7,\n"
+          "      \"MPC_XY_ERR_MAX\": 1.2,\n"
+          "      \"NAV_MC_ALT_RAD\": 0.6,\n"
+          "      \"NAV_ACC_RAD\": 8.0,\n"
+          "      \"MPC_ACC_UP_MAX\": 3.1,\n"
+          "      \"MPC_ACC_DOWN_MAX\": 2.1,\n"
+          "      \"MPC_Z_V_AUTO_UP\": 2.5,\n"
+          "      \"MPC_Z_V_AUTO_DN\": 1.1,\n"
+          "      \"MPC_YAWRAUTO_MAX\": 55.0,\n"
+          "      \"MPC_YAWRAUTO_ACC\": 15.0,\n");
+    const auto trajectory = loader.load_from_text(explicit_trajectory).position_control.trajectory;
+    require(trajectory.enabled, "trajectory_generation must enable trajectory");
+    require(nearly_equal(trajectory.cruise_speed_mps, 4.1), "MPC_XY_CRUISE not loaded");
+    require(nearly_equal(trajectory.acceleration_xy_mps2, 2.2), "MPC_ACC_HOR not loaded");
+    require(nearly_equal(trajectory.jerk_mps3, 3.3), "MPC_JERK_AUTO not loaded");
+    require(nearly_equal(trajectory.trajectory_gain_xy, 0.7), "MPC_XY_TRAJ_P not loaded");
+    require(nearly_equal(trajectory.max_horizontal_error_m, 1.2), "MPC_XY_ERR_MAX not loaded");
+    require(nearly_equal(trajectory.vertical_acceptance_m, 0.6), "NAV_MC_ALT_RAD not loaded");
+    require(nearly_equal(trajectory.target_acceptance_m, 8.0), "NAV_ACC_RAD not loaded");
+    require(nearly_equal(trajectory.acceleration_up_mps2, 3.1), "MPC_ACC_UP_MAX not loaded");
+    require(nearly_equal(trajectory.acceleration_down_mps2, 2.1), "MPC_ACC_DOWN_MAX not loaded");
+    require(nearly_equal(trajectory.velocity_up_mps, 2.5), "MPC_Z_V_AUTO_UP not loaded");
+    require(nearly_equal(trajectory.velocity_down_mps, 1.1), "MPC_Z_V_AUTO_DN not loaded");
+    require(nearly_equal(trajectory.yaw_rate_max_deg_s, 55.0), "MPC_YAWRAUTO_MAX not loaded");
+    require(nearly_equal(trajectory.yaw_acceleration_max_deg_s2, 15.0), "MPC_YAWRAUTO_ACC not loaded");
 
     std::cout << "loader smoke test passed" << std::endl;
     return EXIT_SUCCESS;

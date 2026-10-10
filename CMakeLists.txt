@@ -262,6 +262,20 @@ add_test(
     COMMAND px4_position_control_3d_backend_smoke
 )
 
+add_executable(px4_ekf_sensor_delay_smoke
+    test/px4_ekf_sensor_delay_smoke.cpp
+)
+
+target_link_libraries(px4_ekf_sensor_delay_smoke
+    PRIVATE
+        hakoniwa_drone_control_adapter_px4
+)
+
+add_test(
+    NAME px4_ekf_sensor_delay_smoke
+    COMMAND px4_ekf_sensor_delay_smoke
+)
+
 add_executable(px4_control_allocation_backend_smoke
     test/px4_control_allocation_backend_smoke.cpp
 )
