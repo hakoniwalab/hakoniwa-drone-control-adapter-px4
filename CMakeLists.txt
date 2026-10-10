@@ -135,6 +135,14 @@ target_compile_definitions(hakoniwa_drone_control_adapter_px4
         CONFIG_EKF2_MAGNETOMETER=1
 )
 
+# Drone PRO's HAKO_EKF_IMU_ACCELERATION: Drone PRO hands the controllers the IMU's rate and the gyro's
+# raw derivative, and the rate stage applies PX4's IMU filters (IMU_GYRO_CUTOFF, IMU_DGYRO_CUTOFF).
+# Build both with the same setting. Off: the inputs pass through unchanged, as before.
+option(HAKO_EKF_IMU_ACCELERATION "Apply PX4's IMU filters to the rate stage inputs" OFF)
+if(HAKO_EKF_IMU_ACCELERATION)
+    target_compile_definitions(hakoniwa_drone_control_adapter_px4 PRIVATE HAKO_EKF_IMU_ACCELERATION)
+endif()
+
 install(
     TARGETS hakoniwa_drone_control_adapter_px4
     EXPORT hakoniwa_drone_control_adapter_px4Targets
@@ -453,3 +461,25 @@ add_test(
     NAME compose_px4_rate_control_config_smoke
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/compose_px4_rate_control_config_smoke.py
 )
+
+# Compile the rate backend itself twice so every test build checks both sides of
+# HAKO_EKF_IMU_ACCELERATION, independently of the option used for the main library.
+foreach(filter_mode IN ITEMS on off)
+    set(filter_test px4_imu_velocity_filters_${filter_mode}_smoke)
+    add_executable(${filter_test}
+        test/px4_imu_velocity_filters_smoke.cpp
+        src/px4_rate_control_backend.cpp
+    )
+    target_include_directories(${filter_test} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${PX4_ROOT}/src
+        ${PX4_ROOT}/src/lib
+        ${PX4_ROOT}/src/lib/matrix
+        ${PX4_ROOT}/src/lib/rate_control
+    )
+    target_link_libraries(${filter_test} PRIVATE hakoniwa_drone_control_adapter_px4)
+    if(filter_mode STREQUAL "on")
+        target_compile_definitions(${filter_test} PRIVATE HAKO_EKF_IMU_ACCELERATION EXPECT_IMU_FILTERS)
+    endif()
+    add_test(NAME ${filter_test} COMMAND ${filter_test})
+endforeach()

@@ -30,10 +30,21 @@ struct Px4RateControlFeedForward {
     double yaw{0.0};
 };
 
+// PX4's IMU filters (sensors/vehicle_angular_velocity): IMU_GYRO_CUTOFF, the 2nd-order low-pass
+// on the angular rate, and IMU_DGYRO_CUTOFF, the 1st-order low-pass on the angular acceleration
+// (the D-term input). The adapter applies them only when built with HAKO_EKF_IMU_ACCELERATION,
+// where Drone PRO hands it the IMU's rate and the gyro's raw derivative; without it the inputs pass
+// through unchanged. 0 disables a filter, as in PX4.
+struct Px4ImuFilterConfig {
+    double gyro_cutoff_hz{40.0};
+    double dgyro_cutoff_hz{20.0};
+};
+
 struct Px4RateControlBackendConfig {
     Px4RateControlGains gains{};
     Px4RateControlLimits integrator_limits{};
     Px4RateControlFeedForward feed_forward{};
+    Px4ImuFilterConfig imu_filters{};
 };
 
 struct Px4RateControlBackendStatus {
@@ -57,8 +68,11 @@ private:
     void apply_config();
     static bool is_valid_dt(double dt_sec);
 
+    struct ImuFilters;
+
     Px4RateControlBackendConfig config_{};
     ::RateControl* controller_{nullptr};
+    ImuFilters* imu_filters_{nullptr};
 };
 
 }  // namespace hakoniwa::drone::control_adapter

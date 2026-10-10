@@ -1,10 +1,13 @@
 #pragma once
 
+#include "hakoniwa/drone/control_adapter/px4_velocity_filter_config.hpp"
 #include "hakoniwa/drone/control_adapter/altitude_control_backend.hpp"
 
 class PositionControl;
 
 namespace hakoniwa::drone::control_adapter {
+
+class Px4VelocityStateFilter;
 
 struct Px4AltitudeControlBackendConfig {
     double position_gain_z{0.0};
@@ -16,6 +19,7 @@ struct Px4AltitudeControlBackendConfig {
     double hover_thrust{0.5};
     double thrust_min{0.0};
     double thrust_max{1.0};
+    Px4VelocityFilterConfig velocity_filter{};
 };
 
 class Px4AltitudeControlBackend final : public IAltitudeControlBackend {
@@ -33,6 +37,7 @@ private:
 
     Px4AltitudeControlBackendConfig config_{};
     ::PositionControl* controller_{nullptr};
+    Px4VelocityStateFilter* velocity_filter_{nullptr};
 };
 
 }  // namespace hakoniwa::drone::control_adapter

@@ -140,6 +140,28 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
     config.control_allocation.update_normalization_scale =
         extract_number(text, "CA_UPDATE_NORMALIZATION_SCALE") != 0.0;
     // CA_HOVER_DUTY is obsolete: allocation outputs normalized rotor thrust.
+    // MPC_VEL_LP / MPC_VELD_LP are optional; PX4's defaults 0 (off) / 5 Hz. Applied only in a
+    // HAKO_EKF_IMU_ACCELERATION build (px4_velocity_filter_config.hpp).
+    {
+        Px4VelocityFilterConfig velocity_filter{};
+        if (has_key(text, "MPC_VEL_LP")) {
+            velocity_filter.velocity_cutoff_hz = extract_number(text, "MPC_VEL_LP");
+        }
+        if (has_key(text, "MPC_VELD_LP")) {
+            velocity_filter.velocity_derivative_cutoff_hz = extract_number(text, "MPC_VELD_LP");
+        }
+        config.altitude_control.velocity_filter = velocity_filter;
+        config.horizontal_control.velocity_filter = velocity_filter;
+        config.position_control.velocity_filter = velocity_filter;
+    }
+    // IMU_GYRO_CUTOFF / IMU_DGYRO_CUTOFF are optional; PX4's defaults 40 Hz / 20 Hz. Applied only in a
+    // HAKO_EKF_IMU_ACCELERATION build (px4_rate_control_backend.hpp).
+    if (has_key(text, "IMU_GYRO_CUTOFF")) {
+        config.rate_control.imu_filters.gyro_cutoff_hz = extract_number(text, "IMU_GYRO_CUTOFF");
+    }
+    if (has_key(text, "IMU_DGYRO_CUTOFF")) {
+        config.rate_control.imu_filters.dgyro_cutoff_hz = extract_number(text, "IMU_DGYRO_CUTOFF");
+    }
     // MC_AIRMODE is optional; PX4's default 0 disables air mode.
     if (has_key(text, "MC_AIRMODE")) {
         config.control_allocation.airmode = static_cast<int>(extract_number(text, "MC_AIRMODE"));

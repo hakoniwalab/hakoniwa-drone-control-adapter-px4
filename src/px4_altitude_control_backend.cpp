@@ -1,4 +1,5 @@
 #include "hakoniwa/drone/control_adapter/px4_altitude_control_backend.hpp"
+#include "px4_velocity_state_filter.hpp"
 
 #include "PositionControl.hpp"
 #include <iostream>
@@ -43,6 +44,7 @@ float px4_thrust_to_hako_body_z(float px4_thrust_z, float hover_thrust)
 Px4AltitudeControlBackend::Px4AltitudeControlBackend(const Px4AltitudeControlBackendConfig& config)
     : config_(config)
     , controller_(new PositionControl())
+    , velocity_filter_(new Px4VelocityStateFilter())
 {
     apply_config();
     reset();
@@ -51,11 +53,13 @@ Px4AltitudeControlBackend::Px4AltitudeControlBackend(const Px4AltitudeControlBac
 Px4AltitudeControlBackend::~Px4AltitudeControlBackend()
 {
     delete controller_;
+    delete velocity_filter_;
 }
 
 void Px4AltitudeControlBackend::reset()
 {
     controller_->resetIntegral();
+    velocity_filter_->reset();
 }
 
 NormalizedVerticalThrustCommand Px4AltitudeControlBackend::run(const AltitudeControlInput& input, double dt_sec)
@@ -77,6 +81,10 @@ NormalizedVerticalThrustCommand Px4AltitudeControlBackend::run(const AltitudeCon
     state.position = matrix::Vector3f{0.0f, 0.0f, px4_z};
     state.velocity = matrix::Vector3f{0.0f, 0.0f, px4_vz};
     state.acceleration = matrix::Vector3f{0.0f, 0.0f, px4_az};
+#ifdef HAKO_EKF_IMU_ACCELERATION
+    // MulticopterPositionControl: the filtered velocity and its filtered derivative, not Drone PRO's acceleration.
+    velocity_filter_->apply(state.velocity, state.acceleration, dt);
+#endif
     state.yaw = 0.0f;
     controller_->setState(state);
 
@@ -152,6 +160,7 @@ void Px4AltitudeControlBackend::set_config(const Px4AltitudeControlBackendConfig
 
 void Px4AltitudeControlBackend::apply_config()
 {
+    velocity_filter_->configure(config_.velocity_filter);
     controller_->setPositionGains(
         matrix::Vector3f{
             0.0f,

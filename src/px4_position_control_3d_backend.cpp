@@ -1,4 +1,5 @@
 #include "hakoniwa/drone/control_adapter/px4_position_control_3d_backend.hpp"
+#include "px4_velocity_state_filter.hpp"
 
 #include "PositionControl.hpp"
 
@@ -43,12 +44,20 @@ NormalizedVerticalThrustCommand px4_body_thrust_to_adapter(float px4_thrust_body
     };
 }
 
-void apply_common_state(PositionControl& controller, const PositionControl3DState& input_state)
+void apply_common_state(PositionControl& controller, const PositionControl3DState& input_state,
+                        Px4VelocityStateFilter& velocity_filter, double dt_sec)
 {
     PositionControlStates state{};
     state.position = to_px4_vector(input_state.position);
     state.velocity = to_px4_vector(input_state.velocity);
     state.acceleration = to_px4_vector(input_state.acceleration);
+#ifdef HAKO_EKF_IMU_ACCELERATION
+    // MulticopterPositionControl: the filtered velocity and its filtered derivative, not Drone PRO's acceleration.
+    velocity_filter.apply(state.velocity, state.acceleration, f64(dt_sec > 0.0 ? dt_sec : 0.0));
+#else
+    (void)velocity_filter;
+    (void)dt_sec;
+#endif
     state.yaw = f64(input_state.yaw_rad);
     controller.setState(state);
 }
@@ -91,6 +100,7 @@ PositionControl3DOutput make_output(
 Px4PositionControl3DBackend::Px4PositionControl3DBackend(const Px4PositionControl3DBackendConfig& config)
     : config_(config)
     , controller_(new PositionControl())
+    , velocity_filter_(new Px4VelocityStateFilter())
 {
     apply_config();
     reset();
@@ -99,18 +109,20 @@ Px4PositionControl3DBackend::Px4PositionControl3DBackend(const Px4PositionContro
 Px4PositionControl3DBackend::~Px4PositionControl3DBackend()
 {
     delete controller_;
+    delete velocity_filter_;
 }
 
 void Px4PositionControl3DBackend::reset()
 {
     controller_->resetIntegral();
+    velocity_filter_->reset();
 }
 
 PositionControl3DOutput Px4PositionControl3DBackend::run_position(
     const PositionControl3DPositionInput& input,
     double dt_sec)
 {
-    apply_common_state(*controller_, input.state);
+    apply_common_state(*controller_, input.state, *velocity_filter_, dt_sec);
 
     trajectory_setpoint_s setpoint = PositionControl::empty_trajectory_setpoint;
     setpoint.position[0] = f64(input.target_position.x);
@@ -144,7 +156,7 @@ PositionControl3DOutput Px4PositionControl3DBackend::run_velocity(
     const PositionControl3DVelocityInput& input,
     double dt_sec)
 {
-    apply_common_state(*controller_, input.state);
+    apply_common_state(*controller_, input.state, *velocity_filter_, dt_sec);
 
     trajectory_setpoint_s setpoint = PositionControl::empty_trajectory_setpoint;
     setpoint.velocity[0] = f64(input.target_velocity.x);
@@ -176,6 +188,7 @@ void Px4PositionControl3DBackend::set_config(const Px4PositionControl3DBackendCo
 
 void Px4PositionControl3DBackend::apply_config()
 {
+    velocity_filter_->configure(config_.velocity_filter);
     controller_->setPositionGains(
         matrix::Vector3f{
             f64(config_.position_gain_xy),
