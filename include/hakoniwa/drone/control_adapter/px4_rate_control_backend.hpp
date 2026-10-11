@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "hakoniwa/drone/control_adapter/rate_control_backend.hpp"
 
 class RateControl;
@@ -49,6 +51,15 @@ struct Px4RateControlBackendConfig {
     // "high frequency torque caused by rotor acceleration"). 0: off, as before. HAKO_EKF_IMU_ACCELERATION
     // build only.
     double yaw_torque_cutoff_hz{0.0};
+    // sensor_data_types.imu of the PX4 controller config (px4_sensor_data_type.hpp): imu_fifo_int16
+    // quantizes the gyro rate as PX4 SITL's IMU FIFO before the IMU filters. exact (default): as given.
+    std::string imu_data_type{"exact"};
+    // rate_control.previous_rates_setpoint 1: the rate stage uses the rates setpoint of the previous
+    // cycle, as PX4's mc_rate_control (rate_ctrl work queue, run on vehicle_angular_velocity) runs
+    // before mc_att_control publishes the new vehicle_rates_setpoint from the same IMU sample (after
+    // ekf2's vehicle_attitude): one IMU period (4 ms at 250 Hz) between the stages. Off: the same
+    // cycle's setpoint, as before. HAKO_EKF_IMU_ACCELERATION build only.
+    bool previous_rates_setpoint{false};
 };
 
 struct Px4RateControlBackendStatus {

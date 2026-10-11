@@ -8,6 +8,7 @@
 #endif
 
 #include <algorithm>
+#include <random>
 #include <cfloat>
 #include <optional>
 #include <cmath>
@@ -128,6 +129,13 @@ struct Px4PositionControl3DBackend::TrajectoryState {
     float held_yaw{NAN};
     float held_yawspeed{NAN};
     std::optional<double> held_yaw_rate{};
+    // navigator_delay_ms: the latest requested target, when it came, its delay, and the target in effect.
+    matrix::Vector3f requested{NAN, NAN, NAN};
+    std::optional<double> requested_yaw{};
+    std::optional<double> effective_yaw{};
+    double requested_sec{0.0};
+    double request_delay_sec{0.0};
+    std::mt19937 delay_rng{};
 };
 #else
 struct Px4PositionControl3DBackend::TrajectoryState {};
@@ -158,8 +166,25 @@ void Px4PositionControl3DBackend::reset()
     velocity_filter_->reset();
 #ifdef HAKO_EKF_IMU_ACCELERATION
     trajectory_->started = false;
+    trajectory_->time_sec = 0.0;
+    trajectory_->last_update_sec = 0.0;
+    trajectory_->last_run_sec = 0.0;
+    trajectory_->delay_rng.seed(config_.trajectory.navigator_delay_seed);
 #endif
     yaw_locked_ = false;
+}
+
+// FlightModeManager runs on every position update (each position-control cycle, position or velocity
+// target alike), so its clock advances on every call of the stage.
+void Px4PositionControl3DBackend::advance_trajectory_clock(double dt_sec)
+{
+#ifdef HAKO_EKF_IMU_ACCELERATION
+    if (dt_sec > 0.0) {
+        trajectory_->time_sec += dt_sec;
+    }
+#else
+    (void)dt_sec;
+#endif
 }
 
 PositionControl3DOutput Px4PositionControl3DBackend::run_position(
@@ -167,6 +192,7 @@ PositionControl3DOutput Px4PositionControl3DBackend::run_position(
     double dt_sec)
 {
     yaw_locked_ = false;  // a position target gives its own heading
+    advance_trajectory_clock(dt_sec);
     apply_common_state(*controller_, input.state, *velocity_filter_, dt_sec);
 
     trajectory_setpoint_s setpoint = PositionControl::empty_trajectory_setpoint;
@@ -220,13 +246,39 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
     const auto& cfg = config_.trajectory;
     const matrix::Vector3f position = to_px4_vector(input.state.position);
     const matrix::Vector3f velocity = to_px4_vector(input.state.velocity);
-    const matrix::Vector3f target = to_px4_vector(input.target_position);
+    matrix::Vector3f target = to_px4_vector(input.target_position);
+    std::optional<double> target_yaw = input.target_yaw_rad;
+    if (!cfg.navigator_delay_ms.empty()) {
+        // navigator_delay_ms: a new target reaches the trajectory after the navigator's delay.
+        if (!trajectory.started) {
+            trajectory.requested = target;
+            trajectory.requested_yaw = target_yaw;
+            trajectory.effective_yaw = target_yaw;
+            trajectory.request_delay_sec = 0.0;
+        }
+        else if ((target - trajectory.requested).longerThan(1e-3f) || target_yaw != trajectory.requested_yaw) {
+            trajectory.requested = target;
+            trajectory.requested_yaw = target_yaw;
+            trajectory.requested_sec = trajectory.time_sec;
+            const auto& choices = cfg.navigator_delay_ms;
+            const std::size_t index = choices.size() == 1 ? 0
+                : std::uniform_int_distribution<std::size_t>(0, choices.size() - 1)(trajectory.delay_rng);
+            trajectory.request_delay_sec = choices[index] / 1000.0;
+        }
+        if (trajectory.started && trajectory.time_sec - trajectory.requested_sec + 1e-9 < trajectory.request_delay_sec) {
+            target = trajectory.target;  // the navigator has not published it yet
+            target_yaw = trajectory.effective_yaw;
+        }
+        else {
+            trajectory.effective_yaw = target_yaw;
+        }
+    }
 
     // FlightModeManager runs only when its position subscription interval has passed (uORB
     // SubscriptionInterval: the last update advances by the interval, kept within one interval of now).
+    // The clock and the updates continue across targets and restarts (advance_trajectory_clock).
     float trajectory_dt = dt_sec;
     if (config_.trajectory.update_interval_sec > 0.0 && trajectory.started) {
-        trajectory.time_sec += dt_sec;
         const double interval = config_.trajectory.update_interval_sec;
         // A new target waits for the next update too (FlightModeManager runs on the position, not on
         // the navigator's setpoint).
@@ -236,11 +288,11 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
                 setpoint.velocity[axis] = trajectory.held_velocity[axis];
                 setpoint.acceleration[axis] = trajectory.held_acceleration[axis];
             }
-            if (input.target_yaw_rad) {
+            if (target_yaw) {
                 setpoint.yaw = trajectory.held_yaw;
                 setpoint.yawspeed = trajectory.held_yawspeed;
             }
-            return input.target_yaw_rad ? trajectory.held_yaw_rate : input.target_yaw_rate_rad_sec;
+            return target_yaw ? trajectory.held_yaw_rate : input.target_yaw_rate_rad_sec;
         }
         trajectory_dt = static_cast<float>(trajectory.time_sec - trajectory.last_run_sec);
         trajectory.last_run_sec = trajectory.time_sec;
@@ -248,6 +300,12 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
                                                 trajectory.time_sec - interval, trajectory.time_sec);
     }
 
+    if (!trajectory.started && config_.trajectory.update_interval_sec > 0.0
+        && trajectory.time_sec - trajectory.last_update_sec + 1e-9 < config_.trajectory.update_interval_sec) {
+        // FlightModeManager activates the task on one of its updates: until the next update (the interval
+        // since the last one, on the position updates that never stop), the target passes through.
+        return input.target_yaw_rate_rad_sec;
+    }
     if (!trajectory.started) {
         // FlightTaskAuto::activate: start from the vehicle's state.
         trajectory.position.reset(matrix::Vector3f{0.f, 0.f, 0.f}, velocity, position);
@@ -256,9 +314,12 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
         trajectory.target = target;
         trajectory.unsmoothed_velocity_z = 0.f;
         trajectory.started = true;
-        trajectory.time_sec = 0.0;
-        trajectory.last_update_sec = 0.0;
-        trajectory.last_run_sec = 0.0;
+        // The start is an update of FlightModeManager too: the update history continues from it (no reset
+        // to 0; SubscriptionInterval keeps the reference within one interval of now).
+        trajectory.last_run_sec = trajectory.time_sec;
+        trajectory.last_update_sec = std::clamp(trajectory.last_update_sec + config_.trajectory.update_interval_sec,
+                                                trajectory.time_sec - config_.trajectory.update_interval_sec,
+                                                trajectory.time_sec);
         trajectory.held_valid = false;
     }
     else if ((target - trajectory.target).longerThan(1e-3f)) {
@@ -303,14 +364,14 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
     trajectory.held_valid = true;
 
     // FlightTaskAuto::_smoothYaw: only a yaw target is smoothed; a yaw-rate command passes through.
-    if (!input.target_yaw_rad) {
+    if (!target_yaw) {
         trajectory.heading.reset(f64(input.state.yaw_rad), 0.f);
         trajectory.held_yaw_rate = input.target_yaw_rate_rad_sec;
         return input.target_yaw_rate_rad_sec;
     }
     trajectory.heading.setMaxHeadingRate(f64(cfg.yaw_rate_max_deg_s * M_PI / 180.0));
     trajectory.heading.setMaxHeadingAccel(f64(cfg.yaw_acceleration_max_deg_s2 * M_PI / 180.0));
-    trajectory.heading.update(f64(*input.target_yaw_rad), trajectory_dt);
+    trajectory.heading.update(f64(*target_yaw), trajectory_dt);
     setpoint.yaw = trajectory.heading.getSmoothedHeading();
     setpoint.yawspeed = trajectory.heading.getSmoothedHeadingRate();
     trajectory.held_yaw = setpoint.yaw;
@@ -327,6 +388,7 @@ PositionControl3DOutput Px4PositionControl3DBackend::run_velocity(
 #ifdef HAKO_EKF_IMU_ACCELERATION
     trajectory_->started = false;  // a later position target starts its trajectory from the vehicle
 #endif
+    advance_trajectory_clock(dt_sec);
     apply_common_state(*controller_, input.state, *velocity_filter_, dt_sec);
 
     trajectory_setpoint_s setpoint = PositionControl::empty_trajectory_setpoint;

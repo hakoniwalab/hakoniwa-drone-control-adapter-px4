@@ -67,6 +67,12 @@ void Px4EkfAdapter::set_sensor_delays_ms(double gps_delay_ms, double baro_delay_
     }
 }
 
+void Px4EkfAdapter::set_sensor_data_types(const Px4SensorDataTypes& types)
+{
+    validate_px4_sensor_data_types(types);
+    sensor_data_types_ = types;
+}
+
 void Px4EkfAdapter::set_armed_status(bool armed)
 {
     // PX4 EKF2 exposes in-air and at-rest status, but no independent arming
@@ -199,8 +205,9 @@ void Px4EkfAdapter::apply_sensor_policy()
     }
 }
 
-void Px4EkfAdapter::push_imu(const EkfImuInput& input, double dt_sec)
+void Px4EkfAdapter::push_imu(const EkfImuInput& exact_input, double dt_sec)
 {
+    const EkfImuInput input = px4_imu_input(exact_input, sensor_data_types_.imu);
     if (!std::isfinite(dt_sec) || dt_sec <= 0.0 || dt_sec > 1.0) {
         return;
     }
@@ -248,8 +255,9 @@ void Px4EkfAdapter::push_baro(const EkfBaroInput& input)
     ekf_->setBaroData(baro);
 }
 
-void Px4EkfAdapter::push_gps(const EkfHilGpsInput& input)
+void Px4EkfAdapter::push_gps(const EkfHilGpsInput& exact_input)
 {
+    const EkfHilGpsInput input = px4_gps_input(exact_input, sensor_data_types_.gps);
     ensure_initialized(input.time_usec);
     last_input_time_usec_ = input.time_usec;
 

@@ -91,5 +91,43 @@ int main()
         return EXIT_FAILURE;
     }
 
+    Px4RateControlBackendConfig delayed_config{};
+    delayed_config.gains.roll.p = 1.0;
+    delayed_config.previous_rates_setpoint = true;
+    Px4RateControlBackend delayed_backend(delayed_config);
+    RateControlInput delayed_input{};
+    delayed_input.dt_sec = 0.01;
+    delayed_input.target.p = 1.0;
+    const auto first = delayed_backend.run(delayed_input);
+    delayed_input.target.p = 2.0;
+    const auto second = delayed_backend.run(delayed_input);
+#ifdef HAKO_EKF_IMU_ACCELERATION
+    if (!nearly_equal(first.x, 1.0) || !nearly_equal(second.x, 1.0)) {
+        std::cerr << "enabled previous setpoint did not retain the prior call's target" << std::endl;
+        return EXIT_FAILURE;
+    }
+#else
+    if (!nearly_equal(first.x, 1.0) || !nearly_equal(second.x, 2.0)) {
+        std::cerr << "non-IMU-acceleration build changed target ordering" << std::endl;
+        return EXIT_FAILURE;
+    }
+#endif
+    delayed_backend.reset();
+    delayed_input.target.p = 3.0;
+    if (!nearly_equal(delayed_backend.run(delayed_input).x, 3.0)) {
+        std::cerr << "reset did not discard the previous rates setpoint" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    delayed_config.previous_rates_setpoint = false;
+    Px4RateControlBackend current_backend(delayed_config);
+    delayed_input.target.p = 1.0;
+    (void)current_backend.run(delayed_input);
+    delayed_input.target.p = 2.0;
+    if (!nearly_equal(current_backend.run(delayed_input).x, 2.0)) {
+        std::cerr << "disabled previous setpoint did not use the current target" << std::endl;
+        return EXIT_FAILURE;
+    }
+
     return EXIT_SUCCESS;
 }

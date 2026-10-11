@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cstdint>
+#include <optional>
+#include <vector>
+
 #include "hakoniwa/drone/control_adapter/px4_velocity_filter_config.hpp"
 #include "hakoniwa/drone/control_adapter/position_control_3d_backend.hpp"
 
@@ -32,8 +36,18 @@ struct Px4PositionTrajectoryConfig {
     // PX4's FlightModeManager takes the vehicle position at most every 20 ms (set_interval_us(20_ms)), so
     // the trajectory setpoint is new only every second or third position-control cycle and held in
     // between; the position error then grows by speed x cycle until the next update. 0: every cycle.
-    // position_control.trajectory_update_interval_ms.
+    // position_control.trajectory_update_interval_ms. The updates follow the position updates (every
+    // position-control cycle) from the stage's first cycle on, and a new target or a restarted trajectory
+    // does not reset them (FlightModeManager keeps running across tasks and commands).
     double update_interval_sec{0.0};
+    // An option for imitating PX4 SITL on POSIX (not a model of PX4 on NuttX): the navigator runs as its own
+    // task, so a new reposition reaches FlightModeManager 4, 8 or 12 ms after PX4 received it (x500 SITL,
+    // 30 commands: 11 / 7 / 12, independent of the position update phase, 2026-10-11). A new position
+    // target takes effect after one of these delays (ms), picked per target by a generator seeded with
+    // navigator_delay_seed (independent of the sensor noise seed); one value is a fixed delay. Empty: none.
+    // position_control.navigator_delay_ms (a number or a list), navigator_delay_seed.
+    std::vector<double> navigator_delay_ms{};
+    std::uint32_t navigator_delay_seed{0};
 };
 
 struct Px4PositionControl3DBackendConfig {
@@ -98,6 +112,7 @@ private:
     Px4VelocityStateFilter* velocity_filter_{nullptr};
     struct TrajectoryState;
     TrajectoryState* trajectory_{nullptr};  // HAKO_EKF_IMU_ACCELERATION build only
+    void advance_trajectory_clock(double dt_sec);
     bool yaw_locked_{false};                 // manual_yaw_lock: a heading is held
     double locked_yaw_rad_{0.0};
 };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hakoniwa/drone/control_adapter/ekf_adapter.hpp"
+#include "hakoniwa/drone/control_adapter/px4_sensor_data_type.hpp"
 
 class Ekf;
 
@@ -31,6 +32,10 @@ public:
     // and EKF2 shifts a baro sample by EKF2_BARO_DELAY. Not called: no delay, as before.
     void set_sensor_delays_ms(double gps_delay_ms, double baro_delay_ms);
 
+    // The sensor data types of the PX4 controller config (px4_sensor_data_type.hpp): the IMU and GPS
+    // as PX4 SITL receives them. Not called: exact, as before.
+    void set_sensor_data_types(const Px4SensorDataTypes& types);
+
 private:
     void ensure_initialized(std::uint64_t time_usec);
     void apply_sensor_policy();
@@ -41,6 +46,7 @@ private:
     std::uint64_t last_input_time_usec_{0};
     double gps_delay_ms_{0.0};
     double baro_delay_ms_{0.0};
+    Px4SensorDataTypes sensor_data_types_{};
 };
 
 }  // namespace hakoniwa::drone::control_adapter

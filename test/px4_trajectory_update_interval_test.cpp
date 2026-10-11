@@ -70,10 +70,10 @@ int main()
     const auto changed = [&outputs](int lhs, int rhs) {
         return !nearly_equal(thrust_x(outputs[lhs]), thrust_x(outputs[rhs]), 1e-8);
     };
-    require(!changed(0, 1) && !changed(1, 2), "20 ms interval must hold the first output for 24 ms");
-    require(changed(2, 3), "trajectory must update at 24 ms");
-    require(!changed(3, 4) && changed(4, 5), "next trajectory interval must be 16 ms");
-    require(!changed(5, 6) && !changed(6, 7) && changed(7, 8),
+    require(!changed(0, 1), "target must pass through until the first 20 ms update");
+    require(changed(1, 2), "the first trajectory must start at the first update (24 ms)");
+    require(!changed(2, 3) && changed(3, 4), "next trajectory interval must be 16 ms");
+    require(!changed(4, 5) && !changed(5, 6) && changed(6, 7),
         "trajectory intervals must continue with the next 24 ms interval");
     require(nearly_equal(*outputs[0].target_yaw_rate_rad_sec,
                          *outputs[1].target_yaw_rate_rad_sec, 1e-9),
@@ -83,7 +83,7 @@ int main()
     // previous actual trajectory run rather than the nominal 20 ms interval.
     Px4PositionControl3DBackend elapsed_reference(config(0.0));
     auto elapsed = elapsed_reference.run_position(original, 0.008);
-    for (double dt : {0.024, 0.016, 0.024}) {
+    for (double dt : {0.016, 0.024}) {
         elapsed = elapsed_reference.run_position(original, dt);
     }
     require(nearly_equal(thrust_x(outputs[8]), thrust_x(elapsed), 1e-6),
@@ -92,20 +92,40 @@ int main()
                          *elapsed.target_yaw_rate_rad_sec, 1e-6),
         "yaw trajectory dt must sum to elapsed time without over-counting");
 
-    // The first call always updates, while a subsequent navigator target waits for the interval.
+    // The first trajectory waits for the shared clock's update, and a subsequent target waits too.
     Px4PositionControl3DBackend delayed_target(config(0.020));
     const auto first = delayed_target.run_position(original, 0.008);
     const auto opposite = target(-30.0, -M_PI_2);
     const auto held_once = delayed_target.run_position(opposite, 0.008);
-    const auto held_twice = delayed_target.run_position(opposite, 0.008);
-    const auto applied = delayed_target.run_position(opposite, 0.008);
-    require(nearly_equal(thrust_x(first), thrust_x(held_once), 1e-8)
-            && nearly_equal(thrust_x(first), thrust_x(held_twice), 1e-8),
+    const auto started = delayed_target.run_position(opposite, 0.008);
+    const auto held_twice = delayed_target.run_position(original, 0.008);
+    const auto applied = delayed_target.run_position(original, 0.008);
+    require(!nearly_equal(thrust_x(first), thrust_x(held_once), 1e-8),
+        "before the first update a changed target must pass through unchanged");
+    require(!nearly_equal(thrust_x(held_once), thrust_x(started), 1e-8),
+        "first trajectory must start at the first update");
+    require(nearly_equal(thrust_x(started), thrust_x(held_twice), 1e-8),
         "new position target must wait for the next trajectory update");
-    require(!nearly_equal(thrust_x(first), thrust_x(applied), 1e-8),
+    require(!nearly_equal(thrust_x(held_twice), thrust_x(applied), 1e-8),
         "new position target must apply on the next trajectory update");
-    require(nearly_equal(*first.target_yaw_rate_rad_sec, *held_once.target_yaw_rate_rad_sec, 1e-9),
+    require(nearly_equal(*started.target_yaw_rate_rad_sec, *held_twice.target_yaw_rate_rad_sec, 1e-9),
         "new yaw target must wait with the position target");
+
+    // Velocity calls advance the same clock. Eight plus eight plus eight milliseconds means that the
+    // first later position target starts immediately on that third call, rather than resetting phase.
+    Px4PositionControl3DBackend across_velocity(config(0.020));
+    PositionControl3DVelocityInput velocity{};
+    velocity.target_velocity = {0.0, 0.0, 0.0};
+    across_velocity.run_velocity(velocity, 0.008);
+    across_velocity.run_velocity(velocity, 0.008);
+    const auto after_velocity = across_velocity.run_position(original, 0.008);
+    require(!nearly_equal(thrust_x(after_velocity), thrust_x(first), 1e-8),
+        "velocity calls must advance the trajectory update clock");
+
+    across_velocity.reset();
+    const auto after_reset = across_velocity.run_position(original, 0.008);
+    require(nearly_equal(thrust_x(after_reset), thrust_x(first), 1e-8),
+        "reset must reset the trajectory update clock");
 
     // Without an explicit yaw target, the yaw-rate input remains a pass-through while the
     // position trajectory is held.

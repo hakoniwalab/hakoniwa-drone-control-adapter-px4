@@ -200,6 +200,9 @@ target_link_libraries(px4_rate_control_backend_smoke
     PRIVATE
         hakoniwa_drone_control_adapter_px4
 )
+if(HAKO_EKF_IMU_ACCELERATION)
+    target_compile_definitions(px4_rate_control_backend_smoke PRIVATE HAKO_EKF_IMU_ACCELERATION)
+endif()
 
 add_test(
     NAME px4_rate_control_backend_smoke
@@ -342,6 +345,10 @@ add_test(
 set_tests_properties(px4_controller_config_loader_smoke PROPERTIES
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
 )
+
+add_executable(px4_sensor_data_type_test test/px4_sensor_data_type_test.cpp)
+target_link_libraries(px4_sensor_data_type_test PRIVATE hakoniwa_drone_control_adapter_px4)
+add_test(NAME px4_sensor_data_type_test COMMAND px4_sensor_data_type_test)
 
 add_executable(px4_rate_control_config_only_smoke
     test/px4_rate_control_config_only_smoke.cpp

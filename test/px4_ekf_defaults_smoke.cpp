@@ -75,6 +75,19 @@ int main()
     config.px4_params.ekf2_req_eph = 42.0;
     Px4EkfAdapter adapter(config);
 
+    require(adapter.sensor_data_types_.imu == sensor_data_type::kExact
+            && adapter.sensor_data_types_.gps == sensor_data_type::kExact,
+        "EKF sensor data types must default to exact");
+    adapter.set_sensor_data_types(
+        {sensor_data_type::kImuFifoInt16, sensor_data_type::kMavlinkHilGps});
+    require(adapter.sensor_data_types_.imu == sensor_data_type::kImuFifoInt16
+            && adapter.sensor_data_types_.gps == sensor_data_type::kMavlinkHilGps,
+        "EKF did not retain configured sensor data types");
+    bool unsupported_rejected = false;
+    try { adapter.set_sensor_data_types({"bad", sensor_data_type::kExact}); }
+    catch (const std::runtime_error&) { unsupported_rejected = true; }
+    require(unsupported_rejected, "EKF accepted an unsupported sensor data type");
+
     require_expected_defaults(params(adapter));
     initialize(adapter, 1'000'000);
     require(nearly_equal(params(adapter).ekf2_req_eph, 42.0),

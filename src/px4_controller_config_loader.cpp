@@ -53,6 +53,27 @@ double extract_scoped_number(
     return std::stod(match[1].str());
 }
 
+// "sensor_data_types": {"imu": "...", "gps": "..."}; an absent field keeps its default (exact).
+Px4SensorDataTypes extract_sensor_data_types(const std::string& text)
+{
+    Px4SensorDataTypes types{};
+    std::smatch section;
+    if (!std::regex_search(text, section, std::regex("\"sensor_data_types\"\\s*:\\s*\\{([^}]*)\\}"))) {
+        return types;
+    }
+    const std::string body = section[1].str();
+    const auto field = [&body](const char* key, std::string& value) {
+        std::smatch match;
+        if (std::regex_search(body, match, std::regex("\"" + std::string(key) + "\"\\s*:\\s*\"([^\"]*)\""))) {
+            value = match[1].str();
+        }
+    };
+    field("imu", types.imu);
+    field("gps", types.gps);
+    validate_px4_sensor_data_types(types);
+    return types;
+}
+
 bool has_key(const std::string& text, const char* key)
 {
     const std::regex pattern("\"" + std::string(key) + "\"\\s*:");
@@ -159,6 +180,11 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
     if (has_key(text, "IMU_GYRO_CUTOFF")) {
         config.rate_control.imu_filters.gyro_cutoff_hz = extract_number(text, "IMU_GYRO_CUTOFF");
     }
+    config.sensor_data_types = extract_sensor_data_types(text);
+    config.rate_control.imu_data_type = config.sensor_data_types.imu;
+    // The rate stage on the previous cycle's rates setpoint, optional (off); HAKO_EKF_IMU_ACCELERATION build only.
+    config.rate_control.previous_rates_setpoint = has_key(text, "previous_rates_setpoint")
+        && extract_number(text, "previous_rates_setpoint") != 0.0;
     // MC_YAW_TQ_CUTOFF is optional; 0 (off) when absent. HAKO_EKF_IMU_ACCELERATION build only.
     if (has_key(text, "MC_YAW_TQ_CUTOFF")) {
         config.rate_control.yaw_torque_cutoff_hz = extract_number(text, "MC_YAW_TQ_CUTOFF");
@@ -231,6 +257,28 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
         config.position_control.manual_yaw_lock = has_key(text, "manual_yaw_lock")
             && extract_number(text, "manual_yaw_lock") != 0.0;
         optional("MPC_XY_CRUISE", trajectory.cruise_speed_mps);
+        // The navigator's delay (an option imitating PX4 SITL on POSIX): a number or a list of ms.
+        {
+            std::smatch list;
+            if (std::regex_search(text, list, std::regex("\"navigator_delay_ms\"\\s*:\\s*\\[([^\\]]*)\\]"))) {
+                const std::string body = list[1].str();
+                const std::regex number("[-+]?(?:\\d+\\.?\\d*|\\d*\\.\\d+)(?:[eE][-+]?\\d+)?");
+                for (auto it = std::sregex_iterator(body.begin(), body.end(), number); it != std::sregex_iterator(); ++it) {
+                    trajectory.navigator_delay_ms.push_back(std::stod(it->str()));
+                }
+            }
+            else if (has_key(text, "navigator_delay_ms")) {
+                trajectory.navigator_delay_ms.push_back(extract_number(text, "navigator_delay_ms"));
+            }
+            for (double ms : trajectory.navigator_delay_ms) {
+                if (!(ms >= 0.0)) {
+                    throw std::runtime_error("position_control.navigator_delay_ms must be >= 0");
+                }
+            }
+            if (has_key(text, "navigator_delay_seed")) {
+                trajectory.navigator_delay_seed = static_cast<std::uint32_t>(extract_number(text, "navigator_delay_seed"));
+            }
+        }
         if (has_key(text, "trajectory_update_interval_ms")) {
             trajectory.update_interval_sec = extract_number(text, "trajectory_update_interval_ms") / 1000.0;
         }

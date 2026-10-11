@@ -1,4 +1,5 @@
 #include "hakoniwa/drone/control_adapter/px4_rate_control_backend.hpp"
+#include "hakoniwa/drone/control_adapter/px4_sensor_data_type.hpp"
 
 #include "rate_control.hpp"
 
@@ -30,6 +31,8 @@ struct Px4RateControlBackend::ImuFilters {
     math::LowPassFilter2p<float> rate[3]{};
     AlphaFilter<float> acceleration[3]{};
     AlphaFilter<float> yaw_torque{};  // MC_YAW_TQ_CUTOFF (MulticopterRateControl::_output_lpf_yaw)
+    matrix::Vector3f previous_target{};  // previous_rates_setpoint: the last cycle's rates setpoint
+    bool has_previous_target{false};
     float sample_rate_hz{0.0f};
     bool started{false};
 };
@@ -53,6 +56,7 @@ void Px4RateControlBackend::reset()
     controller_->resetIntegral();
     imu_filters_->started = false;
     imu_filters_->yaw_torque.reset(0.f);
+    imu_filters_->has_previous_target = false;
 }
 
 BodyTorqueCommand Px4RateControlBackend::run(const RateControlInput& input)
@@ -69,7 +73,9 @@ BodyTorqueCommand Px4RateControlBackend::run(const RateControlInput& input)
             input.saturation.yaw.negative
         });
 
-    matrix::Vector3f rate = to_vector3f(input.rate.p, input.rate.q, input.rate.r);
+    matrix::Vector3f rate = (config_.imu_data_type == sensor_data_type::kImuFifoInt16)
+        ? to_vector3f(px4_imu_fifo_gyro(input.rate.p), px4_imu_fifo_gyro(input.rate.q), px4_imu_fifo_gyro(input.rate.r))
+        : to_vector3f(input.rate.p, input.rate.q, input.rate.r);
     matrix::Vector3f angular_accel =
         to_vector3f(input.angular_accel.p_dot, input.angular_accel.q_dot, input.angular_accel.r_dot);
 #ifdef HAKO_EKF_IMU_ACCELERATION
@@ -101,9 +107,21 @@ BodyTorqueCommand Px4RateControlBackend::run(const RateControlInput& input)
     }
 #endif
 
+    matrix::Vector3f target = to_vector3f(input.target.p, input.target.q, input.target.r);
+#ifdef HAKO_EKF_IMU_ACCELERATION
+    if (config_.previous_rates_setpoint) {
+        // PX4: the rate controller runs before the attitude controller publishes this cycle's setpoint.
+        const matrix::Vector3f current = target;
+        if (imu_filters_->has_previous_target) {
+            target = imu_filters_->previous_target;
+        }
+        imu_filters_->previous_target = current;
+        imu_filters_->has_previous_target = true;
+    }
+#endif
     matrix::Vector3f torque = controller_->update(
         rate,
-        to_vector3f(input.target.p, input.target.q, input.target.r),
+        target,
         angular_accel,
         static_cast<float>(is_valid_dt(input.dt_sec) ? input.dt_sec : 0.0),
         input.landed);

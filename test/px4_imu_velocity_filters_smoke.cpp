@@ -1,4 +1,5 @@
 #include "hakoniwa/drone/control_adapter/px4_rate_control_backend.hpp"
+#include "hakoniwa/drone/control_adapter/px4_sensor_data_type.hpp"
 #include "px4_velocity_state_filter.hpp"
 
 #include <cmath>
@@ -60,6 +61,38 @@ void test_rate_filters()
     require(rate_disabled > 0.99 && accel_disabled > 0.99,
         "OFF build must remain pass-through for zero cutoffs");
 #endif
+}
+
+void test_fifo_conversion_precedes_rate_filter()
+{
+    Px4RateControlBackendConfig quantized_config{};
+    quantized_config.gains.roll.p = 1.0;
+    quantized_config.gains.pitch.p = 1.0;
+    quantized_config.gains.yaw.p = 1.0;
+    quantized_config.imu_filters.gyro_cutoff_hz = 40.0;
+    quantized_config.imu_data_type = sensor_data_type::kImuFifoInt16;
+    Px4RateControlBackend quantized(quantized_config);
+
+    Px4RateControlBackendConfig exact_config = quantized_config;
+    exact_config.imu_data_type = sensor_data_type::kExact;
+    Px4RateControlBackend exact_prequantized(exact_config);
+    for (int i = 0; i < 40; ++i) {
+        RateControlInput raw{};
+        raw.rate.p = 0.123456 + i * 0.00017;
+        raw.rate.q = -0.234567 - i * 0.00011;
+        raw.rate.r = 0.345678 + i * 0.00013;
+        raw.dt_sec = 0.002;
+        RateControlInput prequantized = raw;
+        prequantized.rate.p = px4_imu_fifo_gyro(raw.rate.p);
+        prequantized.rate.q = px4_imu_fifo_gyro(raw.rate.q);
+        prequantized.rate.r = px4_imu_fifo_gyro(raw.rate.r);
+        const auto actual = quantized.run(raw);
+        const auto expected = exact_prequantized.run(prequantized);
+        require(std::fabs(actual.x - expected.x) < 1e-7
+                && std::fabs(actual.y - expected.y) < 1e-7
+                && std::fabs(actual.z - expected.z) < 1e-7,
+            "IMU FIFO conversion must occur before the stateful rate filters");
+    }
 }
 
 void test_yaw_torque_filter()
@@ -142,6 +175,7 @@ void test_velocity_filter()
 int main()
 {
     test_rate_filters();
+    test_fifo_conversion_precedes_rate_filter();
     test_yaw_torque_filter();
     test_velocity_filter();
     return EXIT_SUCCESS;

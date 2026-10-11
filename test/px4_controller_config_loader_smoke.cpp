@@ -136,6 +136,51 @@ int main()
         "missing trajectory_update_interval_ms must update every call");
     require(nearly_equal(config.position_control.trajectory.yaw_rate_max_deg_s, 60.0),
         "missing MPC_YAWRAUTO_MAX must keep PX4 default");
+    require(config.sensor_data_types.imu == sensor_data_type::kExact,
+        "missing sensor_data_types.imu must default to exact");
+    require(config.sensor_data_types.gps == sensor_data_type::kExact,
+        "missing sensor_data_types.gps must default to exact");
+    require(config.rate_control.imu_data_type == sensor_data_type::kExact,
+        "rate controller must receive the default IMU data type");
+    require(!config.rate_control.previous_rates_setpoint,
+        "missing previous_rates_setpoint must default to false");
+
+    auto previous_setpoint = sample_config_text();
+    replace_once(previous_setpoint, "  \"rate_control\": {\n",
+        "  \"rate_control\": {\n    \"previous_rates_setpoint\": 2,\n");
+    require(loader.load_from_text(previous_setpoint).rate_control.previous_rates_setpoint,
+        "nonzero previous_rates_setpoint must enable the delay");
+
+    auto imu_only = sample_config_text();
+    replace_once(imu_only, "{\n", "{\n  \"sensor_data_types\": {\"imu\": \"imu_fifo_int16\"},\n");
+    const auto imu_only_config = loader.load_from_text(imu_only);
+    require(imu_only_config.sensor_data_types.imu == sensor_data_type::kImuFifoInt16,
+        "partial sensor_data_types must load IMU");
+    require(imu_only_config.sensor_data_types.gps == sensor_data_type::kExact,
+        "partial sensor_data_types must default GPS to exact");
+    require(imu_only_config.rate_control.imu_data_type == sensor_data_type::kImuFifoInt16,
+        "rate controller did not receive configured IMU data type");
+
+    auto both_types = sample_config_text();
+    replace_once(both_types, "{\n", "{\n  \"sensor_data_types\": {\"imu\": \"imu_fifo_int16\", \"gps\": \"mavlink_hil_gps\"},\n");
+    const auto both_types_config = loader.load_from_text(both_types);
+    require(both_types_config.sensor_data_types.gps == sensor_data_type::kMavlinkHilGps,
+        "sensor_data_types.gps was not loaded");
+
+    bool bad_imu_rejected = false;
+    bool bad_gps_rejected = false;
+    try {
+        auto text = sample_config_text();
+        replace_once(text, "{\n", "{\n  \"sensor_data_types\": {\"imu\": \"bad\"},\n");
+        (void)loader.load_from_text(text);
+    } catch (const std::runtime_error&) { bad_imu_rejected = true; }
+    try {
+        auto text = sample_config_text();
+        replace_once(text, "{\n", "{\n  \"sensor_data_types\": {\"gps\": \"bad\"},\n");
+        (void)loader.load_from_text(text);
+    } catch (const std::runtime_error&) { bad_gps_rejected = true; }
+    require(bad_imu_rejected, "unsupported configured IMU data type was accepted");
+    require(bad_gps_rejected, "unsupported configured GPS data type was accepted");
 
     const std::string position_marker =
         "  \"position_control\": {\n    \"parameters\": {\n";
@@ -191,6 +236,8 @@ int main()
         position_marker
         + "      \"trajectory_generation\": 1,\n"
           "      \"trajectory_update_interval_ms\": 20,\n"
+          "      \"navigator_delay_ms\": [4, 8, 12],\n"
+          "      \"navigator_delay_seed\": 42,\n"
           "      \"MPC_XY_CRUISE\": 4.1,\n"
           "      \"MPC_ACC_HOR\": 2.2,\n"
           "      \"MPC_JERK_AUTO\": 3.3,\n"
@@ -208,6 +255,10 @@ int main()
     require(trajectory.enabled, "trajectory_generation must enable trajectory");
     require(nearly_equal(trajectory.update_interval_sec, 0.020),
         "trajectory_update_interval_ms must be converted to seconds");
+    require(trajectory.navigator_delay_ms == std::vector<double>({4.0, 8.0, 12.0}),
+        "navigator_delay_ms list must be loaded");
+    require(trajectory.navigator_delay_seed == 42,
+        "navigator_delay_seed must be loaded");
     require(nearly_equal(trajectory.cruise_speed_mps, 4.1), "MPC_XY_CRUISE not loaded");
     require(nearly_equal(trajectory.acceleration_xy_mps2, 2.2), "MPC_ACC_HOR not loaded");
     require(nearly_equal(trajectory.jerk_mps3, 3.3), "MPC_JERK_AUTO not loaded");
