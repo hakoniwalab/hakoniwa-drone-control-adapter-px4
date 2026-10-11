@@ -257,6 +257,15 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
         config.position_control.manual_yaw_lock = has_key(text, "manual_yaw_lock")
             && extract_number(text, "manual_yaw_lock") != 0.0;
         optional("MPC_XY_CRUISE", trajectory.cruise_speed_mps);
+        // PX4's automatic takeoff, optional (off); HAKO_EKF_IMU_ACCELERATION build only.
+        trajectory.takeoff_profile = has_key(text, "takeoff_profile") && extract_number(text, "takeoff_profile") != 0.0;
+        optional("MPC_TKO_SPEED", trajectory.takeoff_speed_mps);
+        optional("MPC_TKO_RAMP_T", trajectory.takeoff_ramp_sec);
+        optional("COM_SPOOLUP_TIME", trajectory.spoolup_sec);
+        optional("MPC_LAND_ALT1", trajectory.land_alt1_m);
+        if (has_key(text, "MPC_TILTMAX_LND")) {
+            trajectory.tilt_max_land_rad = extract_number(text, "MPC_TILTMAX_LND") * M_PI / 180.0;
+        }
         // The navigator's delay (an option imitating PX4 SITL on POSIX): a number or a list of ms.
         {
             std::smatch list;

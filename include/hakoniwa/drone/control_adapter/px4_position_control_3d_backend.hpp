@@ -48,6 +48,22 @@ struct Px4PositionTrajectoryConfig {
     // position_control.navigator_delay_ms (a number or a list), navigator_delay_seed.
     std::vector<double> navigator_delay_ms{};
     std::uint32_t navigator_delay_seed{0};
+    // PX4's automatic takeoff (position_control.takeoff_profile 1; an option for the PX4 SITL comparison,
+    // off: the takeoff target is tracked as any position target, as before). A trajectory that starts at
+    // rest under a target above it is a takeoff, until the target changes. As PX4: COM_SPOOLUP_TIME with
+    // no thrust; then mc_pos_control's TakeoffHandling ramps the upward velocity limit from -g/MPC_Z_VEL_P_ACC
+    // to the climb limit over MPC_TKO_RAMP_T (no thrust floor, MPC_TILTMAX_LND) until flight; FlightTaskAuto
+    // climbs at most MPC_TKO_SPEED with min(MPC_ACC_UP_MAX, MPC_TKO_SPEED/MPC_TKO_RAMP_T) below MPC_LAND_ALT1,
+    // holding the altitude setpoint at the vehicle's, until the vehicle is within NAV_MC_ALT_RAD of the takeoff
+    // height (navigator completes the takeoff and loiters there); until the ramp-up FlightModeManager re-activates the
+    // task every update (FlightTaskAuto::reActivate: the trajectory restarts at the vehicle's position with
+    // 0.7 m/s down). HAKO_EKF_IMU_ACCELERATION build only.
+    bool takeoff_profile{false};
+    double takeoff_speed_mps{1.5};           // MPC_TKO_SPEED
+    double takeoff_ramp_sec{3.0};            // MPC_TKO_RAMP_T
+    double spoolup_sec{1.0};                 // COM_SPOOLUP_TIME
+    double land_alt1_m{10.0};                // MPC_LAND_ALT1
+    double tilt_max_land_rad{0.20943951};    // MPC_TILTMAX_LND (12 deg)
 };
 
 struct Px4PositionControl3DBackendConfig {
@@ -105,6 +121,7 @@ private:
         const PositionControl3DPositionInput& input,
         float dt_sec,
         ::trajectory_setpoint_s& setpoint);
+    void apply_takeoff(::trajectory_setpoint_s& setpoint, double dt_sec);
 #endif
 
     Px4PositionControl3DBackendConfig config_{};

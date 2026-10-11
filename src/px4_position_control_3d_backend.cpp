@@ -136,6 +136,14 @@ struct Px4PositionControl3DBackend::TrajectoryState {
     double requested_sec{0.0};
     double request_delay_sec{0.0};
     std::mt19937 delay_rng{};
+    // takeoff_profile: the takeoff in progress (FlightTaskAuto's takeoff type) and TakeoffHandling's state.
+    bool takeoff_active{false};
+    matrix::Vector3f takeoff_target{};
+    float takeoff_ground_z{0.f};
+    int takeoff_state{-1};            // -1 none, 0 spool-up, 1 ready, 2 ramp-up, 3 flight
+    double takeoff_elapsed_sec{0.0};
+    double takeoff_ramp_progress{0.0};
+    bool takeoff_limits_restored{true};
 };
 #else
 struct Px4PositionControl3DBackend::TrajectoryState {};
@@ -170,6 +178,9 @@ void Px4PositionControl3DBackend::reset()
     trajectory_->last_update_sec = 0.0;
     trajectory_->last_run_sec = 0.0;
     trajectory_->delay_rng.seed(config_.trajectory.navigator_delay_seed);
+    trajectory_->takeoff_active = false;
+    trajectory_->takeoff_state = -1;
+    trajectory_->takeoff_limits_restored = true;
 #endif
     yaw_locked_ = false;
 }
@@ -216,6 +227,7 @@ PositionControl3DOutput Px4PositionControl3DBackend::run_position(
     std::optional<double> output_yaw_rate = input.target_yaw_rate_rad_sec;
 #ifdef HAKO_EKF_IMU_ACCELERATION
     output_yaw_rate = apply_trajectory(input, f64(dt_sec > 0.0 ? dt_sec : 0.0), setpoint);
+    apply_takeoff(setpoint, dt_sec > 0.0 ? dt_sec : 0.0);
 #endif
     controller_->setInputSetpoint(setpoint);
 
@@ -226,6 +238,74 @@ PositionControl3DOutput Px4PositionControl3DBackend::run_position(
 
     return make_output(*controller_, config_.hover_thrust, output_yaw_rate);
 }
+
+#ifdef HAKO_EKF_IMU_ACCELERATION
+// takeoff_profile: MulticopterPositionControl with TakeoffHandling (mc_pos_control/Takeoff). The takeoff
+// starts armed (spool-up), is ready after COM_SPOOLUP_TIME, ramps up when the trajectory wants to climb
+// (unsmoothed upward velocity above 0.3 m/s) and flies when the ramp is complete.
+void Px4PositionControl3DBackend::apply_takeoff(trajectory_setpoint_s& setpoint, double dt_sec)
+{
+    auto& tr = *trajectory_;
+    const auto& cfg = config_.trajectory;
+    if (!cfg.takeoff_profile || tr.takeoff_state < 0) {
+        return;
+    }
+    // TakeoffHandling::updateTakeoffState
+    tr.takeoff_elapsed_sec += dt_sec;
+    if (tr.takeoff_state == 0 && tr.takeoff_elapsed_sec + 1e-9 >= cfg.spoolup_sec) {
+        tr.takeoff_state = 1;
+    }
+    if (tr.takeoff_state == 1 && tr.unsmoothed_velocity_z < -0.3f) {
+        tr.takeoff_state = 2;
+        tr.takeoff_ramp_progress = 0.0;
+    }
+    if (tr.takeoff_state == 2 && tr.takeoff_ramp_progress >= 1.0) {
+        tr.takeoff_state = 3;
+    }
+    if (tr.takeoff_state == 3) {
+        if (!tr.takeoff_limits_restored) {
+            // Flying: the usual limits (MPC_THR_MIN, MPC_TILTMAX_AIR, the climb limit).
+            controller_->setVelocityLimits(f64(config_.velocity_max_xy_mps), f64(config_.velocity_max_up_mps),
+                                           f64(config_.velocity_max_down_mps));
+            controller_->setThrustLimits(f64(config_.thrust_min), f64(config_.thrust_max));
+            controller_->setTiltLimit(f64(config_.tilt_limit_rad));
+            tr.takeoff_limits_restored = true;
+        }
+        return;
+    }
+    // TakeoffHandling::updateRamp: from -g / MPC_Z_VEL_P_ACC to the climb constraint (FlightTaskAuto's
+    // speed_up, 1.2 x MPC_Z_V_AUTO_UP) over MPC_TKO_RAMP_T.
+    const double vz_init = -9.80665 / std::fmax(config_.velocity_p_z, 0.01);
+    const double desired = 1.2 * cfg.velocity_up_mps;
+    double speed_up = vz_init;
+    if (tr.takeoff_state == 2) {
+        tr.takeoff_ramp_progress = (cfg.takeoff_ramp_sec > dt_sec)
+            ? tr.takeoff_ramp_progress + dt_sec / cfg.takeoff_ramp_sec : 1.0;
+        speed_up = (tr.takeoff_ramp_progress < 1.0)
+            ? vz_init + tr.takeoff_ramp_progress * (desired - vz_init) : desired;
+    }
+    controller_->setVelocityLimits(f64(config_.velocity_max_xy_mps),
+                                   f64(std::fmin(speed_up, config_.velocity_max_up_mps)),
+                                   f64(config_.velocity_max_down_mps));
+    controller_->setThrustLimits(0.f, f64(config_.thrust_max));  // ramping from zero thrust
+    controller_->setTiltLimit(f64(cfg.tilt_max_land_rad));       // MPC_TILTMAX_LND until flight
+    if (tr.takeoff_state == 2 && std::isfinite(setpoint.velocity[2])) {
+        setpoint.acceleration[2] = NAN;  // the ramp is not amended by the acceleration feed-forward
+    }
+    if (tr.takeoff_state < 2) {
+        // Not taken off: no corrections, no thrust (a high downward acceleration), no integrator windup.
+        const float yaw = setpoint.yaw;
+        const float yawspeed = setpoint.yawspeed;
+        setpoint = PositionControl::empty_trajectory_setpoint;
+        setpoint.acceleration[0] = 0.f;
+        setpoint.acceleration[1] = 0.f;
+        setpoint.acceleration[2] = 100.f;
+        setpoint.yaw = yaw;
+        setpoint.yawspeed = yawspeed;
+        controller_->resetIntegral();
+    }
+}
+#endif
 
 #ifdef HAKO_EKF_IMU_ACCELERATION
 std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
@@ -306,6 +386,32 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
         // since the last one, on the position updates that never stop), the target passes through.
         return input.target_yaw_rate_rad_sec;
     }
+    if (!trajectory.started && cfg.takeoff_profile && position(2) - target(2) > 0.5f
+        && std::fabs(velocity(2)) < 0.2f && trajectory.takeoff_state < 0) {
+        // takeoff_profile: a trajectory from rest under a target above it is a takeoff (navigator's takeoff).
+        trajectory.takeoff_active = true;
+        trajectory.takeoff_target = target;
+        trajectory.takeoff_ground_z = position(2);
+        trajectory.takeoff_state = 0;
+        trajectory.takeoff_elapsed_sec = 0.0;
+        trajectory.takeoff_ramp_progress = 0.0;
+        trajectory.takeoff_limits_restored = false;
+    }
+    else if (trajectory.takeoff_active && (target - trajectory.takeoff_target).longerThan(1e-3f)) {
+        trajectory.takeoff_active = false;  // the next target is a position, not the takeoff
+    }
+    else if (trajectory.takeoff_active) {
+        // navigator: the takeoff is complete within the altitude acceptance (NAV_MC_ALT_RAD; half the takeoff
+        // height when that is smaller); the setpoint becomes a loiter at the same position.
+        const float takeoff_height = trajectory.takeoff_ground_z - trajectory.takeoff_target(2);
+        float acceptance = f64(cfg.vertical_acceptance_m);
+        if (takeoff_height > 0.f && takeoff_height < acceptance) {
+            acceptance = takeoff_height / 2.f;
+        }
+        if (trajectory.takeoff_ground_z - position(2) > takeoff_height - acceptance) {
+            trajectory.takeoff_active = false;
+        }
+    }
     if (!trajectory.started) {
         // FlightTaskAuto::activate: start from the vehicle's state.
         trajectory.position.reset(matrix::Vector3f{0.f, 0.f, 0.f}, velocity, position);
@@ -346,12 +452,25 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
         smoothing.setMaxAccelerationZ(f64(cfg.acceleration_down_mps2));
         smoothing.setMaxVelocityZ(f64(cfg.velocity_down_mps));
     }
+    if (trajectory.takeoff_active && trajectory.unsmoothed_velocity_z < 0.f
+        && trajectory.takeoff_ground_z - position(2) < f64(cfg.land_alt1_m)) {
+        // FlightTaskAuto::_updateTrajConstraints for a takeoff below MPC_LAND_ALT1.
+        smoothing.setMaxVelocityZ(f64(cfg.takeoff_speed_mps));
+        smoothing.setMaxAccelerationZ(std::fmin(f64(cfg.acceleration_up_mps2),
+                                                f64(cfg.takeoff_speed_mps / cfg.takeoff_ramp_sec)));
+        smoothing.forceSetPosition(matrix::Vector3f{NAN, NAN, position(2)});
+    }
 
     const matrix::Vector3f waypoints[3] = {trajectory.previous_waypoint, trajectory.target, trajectory.target};
     const matrix::Vector3f feedforward_velocity{NAN, NAN, NAN};
     PositionSmoothing::PositionSmoothingSetpoints smoothed{};
     smoothing.generateSetpoints(position, waypoints, feedforward_velocity, trajectory_dt, false, smoothed);
     trajectory.unsmoothed_velocity_z = smoothed.unsmoothed_velocity(2);
+    if (trajectory.takeoff_active && trajectory.takeoff_state >= 0 && trajectory.takeoff_state < 2) {
+        // FlightModeManager: before the takeoff ramp-up the task is re-activated after each update
+        // (FlightTaskAuto::reActivate: zero acceleration, 0.7 m/s down, the vehicle's position).
+        smoothing.reset(matrix::Vector3f{0.f, 0.f, 0.f}, matrix::Vector3f{0.f, 0.f, 0.7f}, position);
+    }
 
     for (int axis = 0; axis < 3; ++axis) {
         setpoint.position[axis] = smoothed.position(axis);
