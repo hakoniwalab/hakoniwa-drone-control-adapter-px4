@@ -55,6 +55,11 @@ struct Px4PositionControl3DBackendConfig {
     bool decouple_horizontal_and_vertical_acceleration{false};
     Px4VelocityFilterConfig velocity_filter{};
     Px4PositionTrajectoryConfig trajectory{};
+    // PX4's manual heading lock (StickYaw::updateYawLock): a velocity target without a yaw holds the
+    // heading at which the yaw stick came back to 0, and follows the vehicle while the stick turns it.
+    // Off: the heading setpoint is the vehicle's own (no hold). HAKO_EKF_IMU_ACCELERATION build only,
+    // enabled by position_control.manual_yaw_lock 1 (set by the PX4 SITL timing profile).
+    bool manual_yaw_lock{false};
 };
 
 class Px4PositionControl3DBackend final : public IPositionControl3DBackend {
@@ -88,6 +93,8 @@ private:
     Px4VelocityStateFilter* velocity_filter_{nullptr};
     struct TrajectoryState;
     TrajectoryState* trajectory_{nullptr};  // HAKO_EKF_IMU_ACCELERATION build only
+    bool yaw_locked_{false};                 // manual_yaw_lock: a heading is held
+    double locked_yaw_rad_{0.0};
 };
 
 }  // namespace hakoniwa::drone::control_adapter

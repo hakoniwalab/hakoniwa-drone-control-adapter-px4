@@ -223,6 +223,9 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
                 value = extract_number(text, key);
             }
         };
+        // PX4's manual heading lock, optional (off); HAKO_EKF_IMU_ACCELERATION build only.
+        config.position_control.manual_yaw_lock = has_key(text, "manual_yaw_lock")
+            && extract_number(text, "manual_yaw_lock") != 0.0;
         optional("MPC_XY_CRUISE", trajectory.cruise_speed_mps);
         optional("MPC_ACC_HOR", trajectory.acceleration_xy_mps2);
         optional("MPC_JERK_AUTO", trajectory.jerk_mps3);

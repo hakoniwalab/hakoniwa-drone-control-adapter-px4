@@ -7,6 +7,7 @@
 #include <motion_planning/PositionSmoothing.hpp>
 #endif
 
+#include <cfloat>
 #include <cmath>
 
 namespace hakoniwa::drone::control_adapter {
@@ -144,12 +145,14 @@ void Px4PositionControl3DBackend::reset()
 #ifdef HAKO_EKF_IMU_ACCELERATION
     trajectory_->started = false;
 #endif
+    yaw_locked_ = false;
 }
 
 PositionControl3DOutput Px4PositionControl3DBackend::run_position(
     const PositionControl3DPositionInput& input,
     double dt_sec)
 {
+    yaw_locked_ = false;  // a position target gives its own heading
     apply_common_state(*controller_, input.state, *velocity_filter_, dt_sec);
 
     trajectory_setpoint_s setpoint = PositionControl::empty_trajectory_setpoint;
@@ -286,6 +289,20 @@ PositionControl3DOutput Px4PositionControl3DBackend::run_velocity(
     }
 
     apply_common_yaw_setpoint(setpoint, input.state, input.target_yaw_rad, input.target_yaw_rate_rad_sec);
+#ifdef HAKO_EKF_IMU_ACCELERATION
+    // PX4 StickYaw::updateYawLock: hold the heading while the yaw stick rests, free it while it turns.
+    const double yaw_rate = input.target_yaw_rate_rad_sec.value_or(0.0);
+    if (!config_.manual_yaw_lock || input.target_yaw_rad || std::fabs(yaw_rate) > FLT_EPSILON) {
+        yaw_locked_ = false;
+    }
+    else {
+        if (!yaw_locked_) {
+            locked_yaw_rad_ = input.state.yaw_rad;
+            yaw_locked_ = true;
+        }
+        setpoint.yaw = f64(locked_yaw_rad_);
+    }
+#endif
     controller_->setInputSetpoint(setpoint);
 
     const bool ok = controller_->update(f64(dt_sec > 0.0 ? dt_sec : 0.0));
