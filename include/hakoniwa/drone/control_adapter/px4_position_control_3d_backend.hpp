@@ -64,6 +64,15 @@ struct Px4PositionTrajectoryConfig {
     double spoolup_sec{1.0};                 // COM_SPOOLUP_TIME
     double land_alt1_m{10.0};                // MPC_LAND_ALT1
     double tilt_max_land_rad{0.20943951};    // MPC_TILTMAX_LND (12 deg)
+    // HAKO_ENABLE_FLIGHT_PHASE: the caller's phase starts the takeoff above (no inference from the target once
+    // the caller has sent a phase), and a Landing phase descends as FlightTaskAuto::_prepareLandSetpoints
+    // (position_control.landing_profile 1; off: the landing target is tracked as any position target). The
+    // speed is interpolated between MPC_LAND_SPEED at MPC_LAND_ALT2 and MPC_Z_V_AUTO_DN at MPC_LAND_ALT1 by the
+    // height above the takeoff point, shaped within MPC_ACC_DOWN_MAX and MPC_JERK_AUTO; the horizontal target
+    // is held. HAKO_EKF_IMU_ACCELERATION build only.
+    bool landing_profile{false};
+    double land_speed_mps{0.7};              // MPC_LAND_SPEED
+    double land_alt2_m{5.0};                 // MPC_LAND_ALT2
 };
 
 struct Px4PositionControl3DBackendConfig {
@@ -122,6 +131,9 @@ private:
         float dt_sec,
         ::trajectory_setpoint_s& setpoint);
     void apply_takeoff(::trajectory_setpoint_s& setpoint, double dt_sec);
+#ifdef HAKO_ENABLE_FLIGHT_PHASE
+    void apply_landing(PositionControl3DPositionInput& input, double dt_sec);
+#endif
 #endif
 
     Px4PositionControl3DBackendConfig config_{};

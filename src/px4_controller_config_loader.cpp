@@ -263,6 +263,10 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
         optional("MPC_TKO_RAMP_T", trajectory.takeoff_ramp_sec);
         optional("COM_SPOOLUP_TIME", trajectory.spoolup_sec);
         optional("MPC_LAND_ALT1", trajectory.land_alt1_m);
+        // PX4's landing descent, optional (off); HAKO_ENABLE_FLIGHT_PHASE and HAKO_EKF_IMU_ACCELERATION builds only.
+        trajectory.landing_profile = has_key(text, "landing_profile") && extract_number(text, "landing_profile") != 0.0;
+        optional("MPC_LAND_SPEED", trajectory.land_speed_mps);
+        optional("MPC_LAND_ALT2", trajectory.land_alt2_m);
         if (has_key(text, "MPC_TILTMAX_LND")) {
             trajectory.tilt_max_land_rad = extract_number(text, "MPC_TILTMAX_LND") * M_PI / 180.0;
         }

@@ -144,6 +144,12 @@ struct Px4PositionControl3DBackend::TrajectoryState {
     double takeoff_elapsed_sec{0.0};
     double takeoff_ramp_progress{0.0};
     bool takeoff_limits_restored{true};
+    // HAKO_ENABLE_FLIGHT_PHASE: the caller sends phases (the takeoff is no longer inferred), and the landing's
+    // shaped descent speed (down) and acceleration.
+    bool phase_seen{false};
+    bool landing{false};
+    double land_velocity{0.0};
+    double land_acceleration{0.0};
 };
 #else
 struct Px4PositionControl3DBackend::TrajectoryState {};
@@ -181,6 +187,10 @@ void Px4PositionControl3DBackend::reset()
     trajectory_->takeoff_active = false;
     trajectory_->takeoff_state = -1;
     trajectory_->takeoff_limits_restored = true;
+    trajectory_->phase_seen = false;
+    trajectory_->landing = false;
+    trajectory_->land_velocity = 0.0;
+    trajectory_->land_acceleration = 0.0;
 #endif
     yaw_locked_ = false;
 }
@@ -199,9 +209,15 @@ void Px4PositionControl3DBackend::advance_trajectory_clock(double dt_sec)
 }
 
 PositionControl3DOutput Px4PositionControl3DBackend::run_position(
-    const PositionControl3DPositionInput& input,
+    const PositionControl3DPositionInput& requested,
     double dt_sec)
 {
+#if defined(HAKO_EKF_IMU_ACCELERATION) && defined(HAKO_ENABLE_FLIGHT_PHASE)
+    PositionControl3DPositionInput input = requested;
+    apply_landing(input, dt_sec > 0.0 ? dt_sec : 0.0);
+#else
+    const PositionControl3DPositionInput& input = requested;
+#endif
     yaw_locked_ = false;  // a position target gives its own heading
     advance_trajectory_clock(dt_sec);
     apply_common_state(*controller_, input.state, *velocity_filter_, dt_sec);
@@ -386,9 +402,24 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
         // since the last one, on the position updates that never stop), the target passes through.
         return input.target_yaw_rate_rad_sec;
     }
-    if (!trajectory.started && cfg.takeoff_profile && position(2) - target(2) > 0.5f
-        && std::fabs(velocity(2)) < 0.2f && trajectory.takeoff_state < 0) {
+    bool start_takeoff = !trajectory.started && cfg.takeoff_profile && trajectory.takeoff_state < 0;
+    bool phase_ends_takeoff = false;
+#ifdef HAKO_ENABLE_FLIGHT_PHASE
+    if (input.flight_phase != FlightPhase::Normal) {
+        trajectory.phase_seen = true;
+    }
+    if (trajectory.phase_seen) {
+        // The caller's phase: the takeoff starts on its request and ends when it asks for anything else.
+        start_takeoff = start_takeoff && input.flight_phase == FlightPhase::Takeoff;
+        phase_ends_takeoff = input.flight_phase != FlightPhase::Takeoff;
+    }
+    else
+#endif
+    {
         // takeoff_profile: a trajectory from rest under a target above it is a takeoff (navigator's takeoff).
+        start_takeoff = start_takeoff && position(2) - target(2) > 0.5f && std::fabs(velocity(2)) < 0.2f;
+    }
+    if (start_takeoff) {
         trajectory.takeoff_active = true;
         trajectory.takeoff_target = target;
         trajectory.takeoff_ground_z = position(2);
@@ -397,7 +428,7 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
         trajectory.takeoff_ramp_progress = 0.0;
         trajectory.takeoff_limits_restored = false;
     }
-    else if (trajectory.takeoff_active && (target - trajectory.takeoff_target).longerThan(1e-3f)) {
+    else if (trajectory.takeoff_active && (phase_ends_takeoff || (target - trajectory.takeoff_target).longerThan(1e-3f))) {
         trajectory.takeoff_active = false;  // the next target is a position, not the takeoff
     }
     else if (trajectory.takeoff_active) {
@@ -498,6 +529,42 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
     trajectory.held_yaw_rate = static_cast<double>(setpoint.yawspeed);
     return trajectory.held_yaw_rate;
 }
+
+#ifdef HAKO_ENABLE_FLIGHT_PHASE
+// landing_profile: FlightTaskAuto::_prepareLandSetpoints. The horizontal target is held and the vertical
+// axis follows a descent speed (the altitude setpoint at the vehicle's), interpolated between MPC_LAND_SPEED
+// at MPC_LAND_ALT2 and MPC_Z_V_AUTO_DN at MPC_LAND_ALT1 by the height above the takeoff point and shaped as
+// PX4's trajectory: the acceleration moves toward the time-optimal one for the remaining speed change within
+// the jerk, bounded by the acceleration limit.
+void Px4PositionControl3DBackend::apply_landing(PositionControl3DPositionInput& input, double dt_sec)
+{
+    auto& tr = *trajectory_;
+    const auto& cfg = config_.trajectory;
+    if (input.flight_phase != FlightPhase::Landing || !cfg.landing_profile) {
+        tr.landing = false;
+        return;
+    }
+    if (!tr.landing) {
+        tr.landing = true;
+        tr.land_velocity = 0.0;
+        tr.land_acceleration = 0.0;
+        dt_sec = 0.0;
+    }
+    const double ground_z = (tr.takeoff_state >= 0) ? static_cast<double>(tr.takeoff_ground_z) : 0.0;
+    const double h = ground_z - input.state.position.z;
+    const double t = (cfg.land_alt1_m > cfg.land_alt2_m)
+        ? std::clamp((h - cfg.land_alt2_m) / (cfg.land_alt1_m - cfg.land_alt2_m), 0.0, 1.0)
+        : (h > cfg.land_alt2_m ? 1.0 : 0.0);
+    const double target = cfg.land_speed_mps + t * (cfg.velocity_down_mps - cfg.land_speed_mps);
+    const double dv = target - tr.land_velocity;
+    const double a_goal = std::clamp(std::copysign(std::sqrt(2.0 * cfg.jerk_mps3 * std::fabs(dv)), dv),
+                                     -cfg.acceleration_down_mps2, cfg.acceleration_down_mps2);
+    tr.land_acceleration += std::clamp(a_goal - tr.land_acceleration, -cfg.jerk_mps3 * dt_sec, cfg.jerk_mps3 * dt_sec);
+    tr.land_velocity += tr.land_acceleration * dt_sec;
+    input.target_position.z = input.state.position.z;
+    input.feedforward_velocity = Vector3D{0.0, 0.0, tr.land_velocity};
+}
+#endif
 #endif
 
 PositionControl3DOutput Px4PositionControl3DBackend::run_velocity(

@@ -227,6 +227,64 @@ int main()
     const auto ordinary_moving = moving_backend.run_position(moving, 0.01);
     require(std::fabs(ordinary_moving.thrust.body_z) > 0.1,
         "vertical speed at the 0.2 m/s boundary must not start takeoff");
+
+#ifdef HAKO_ENABLE_FLIGHT_PHASE
+    PositionControl3DPositionInput explicit_takeoff = too_low;
+    explicit_takeoff.flight_phase = FlightPhase::Takeoff;
+    Px4PositionControl3DBackend explicit_backend(takeoff_config);
+    const auto explicit_spool = explicit_backend.run_position(explicit_takeoff, 0.01);
+    require(std::fabs(explicit_spool.thrust.body_z) < 1e-6,
+        "an explicit Takeoff must start the profile without the legacy height condition");
+
+    PositionControl3DPositionInput normal_high = takeoff_input;
+    normal_high.flight_phase = FlightPhase::Normal;
+    const auto after_takeoff = explicit_backend.run_position(normal_high, 0.01);
+    require(std::fabs(after_takeoff.thrust.body_z) > 0.1,
+        "a phase other than Takeoff must end the explicit takeoff profile");
+
+    Px4PositionControl3DBackend phase_seen_backend(takeoff_config);
+    PositionControl3DPositionInput seen = takeoff_input;
+    seen.flight_phase = FlightPhase::Landing;
+    (void)phase_seen_backend.run_position(seen, 0.01);
+    const auto no_inferred_spool = phase_seen_backend.run_position(normal_high, 0.01);
+    require(std::fabs(no_inferred_spool.thrust.body_z) > 0.1,
+        "legacy takeoff inference must stay disabled after an explicit phase is seen");
+
+    Px4PositionControl3DBackendConfig landing_config = trajectory_config;
+    landing_config.trajectory.enabled = false;
+    landing_config.trajectory.landing_profile = true;
+    landing_config.trajectory.land_speed_mps = 0.7;
+    landing_config.trajectory.land_alt2_m = 5.0;
+    landing_config.trajectory.land_alt1_m = 10.0;
+    landing_config.trajectory.velocity_down_mps = 1.2;
+    landing_config.trajectory.jerk_mps3 = 2.0;
+    landing_config.trajectory.acceleration_down_mps2 = 1.0;
+    PositionControl3DPositionInput landing_input{};
+    landing_input.state = hover_state;
+    landing_input.state.position.z = -7.0;
+    landing_input.target_position = {3.0, -2.0, 0.0};
+    landing_input.flight_phase = FlightPhase::Landing;
+    Px4PositionControl3DBackend landing_backend(landing_config);
+    const auto landing_start = landing_backend.run_position(landing_input, 0.1);
+    require(landing_start.debug_thrust_sp.has_value(), "landing profile must produce a thrust setpoint");
+    require(std::fabs(landing_start.debug_thrust_sp->z) < 1e-4,
+        "landing starts with zero vertical speed and acceleration");
+    const auto landing_next = landing_backend.run_position(landing_input, 0.1);
+    require(landing_next.debug_thrust_sp->z > landing_start.debug_thrust_sp->z,
+        "landing speed must ramp downward from rest under jerk and acceleration limits");
+
+    Px4PositionControl3DBackendConfig landing_off_config = landing_config;
+    landing_off_config.trajectory.landing_profile = false;
+    Px4PositionControl3DBackend landing_off_backend(landing_off_config);
+    const auto landing_off = landing_off_backend.run_position(landing_input, 0.1);
+    require(std::fabs(landing_off.debug_thrust_sp->z) > 0.1,
+        "landing_profile off must preserve the caller's vertical position target");
+
+    landing_backend.reset();
+    const auto landing_after_reset = landing_backend.run_position(landing_input, 0.1);
+    require(nearly_equal(landing_after_reset.debug_thrust_sp->z, landing_start.debug_thrust_sp->z),
+        "reset must restart landing shaping from zero velocity and acceleration");
+#endif
 #endif
 
     return EXIT_SUCCESS;

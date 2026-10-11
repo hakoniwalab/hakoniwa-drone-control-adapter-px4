@@ -135,6 +135,14 @@ target_compile_definitions(hakoniwa_drone_control_adapter_px4
         CONFIG_EKF2_MAGNETOMETER=1
 )
 
+# HAKO_ENABLE_FLIGHT_PHASE: the 3D position input carries the caller's flight phase (takeoff, landing) and the
+# interface revision changes with it. Public: a consumer of this package compiles the interface headers with
+# the same layout. Drone PRO must be built with the same setting. Off: the interface as before.
+option(HAKO_ENABLE_FLIGHT_PHASE "Pass the caller's flight phase to the 3D position stage" OFF)
+if(HAKO_ENABLE_FLIGHT_PHASE)
+    target_compile_definitions(hakoniwa_drone_control_adapter_px4 PUBLIC HAKO_ENABLE_FLIGHT_PHASE)
+endif()
+
 # Drone PRO's HAKO_EKF_IMU_ACCELERATION: Drone PRO hands the controllers the IMU's rate and the gyro's
 # raw derivative, and the rate stage applies PX4's IMU filters (IMU_GYRO_CUTOFF, IMU_DGYRO_CUTOFF).
 # Build both with the same setting. Off: the inputs pass through unchanged, as before.
