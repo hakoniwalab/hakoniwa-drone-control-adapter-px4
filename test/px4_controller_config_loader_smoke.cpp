@@ -130,6 +130,8 @@ int main()
         "missing MPC_XY_CRUISE must keep PX4 default");
     require(nearly_equal(config.position_control.trajectory.jerk_mps3, 4.0),
         "missing MPC_JERK_AUTO must keep PX4 default");
+    require(nearly_equal(config.position_control.trajectory.update_interval_sec, 0.0),
+        "missing trajectory_update_interval_ms must update every call");
     require(nearly_equal(config.position_control.trajectory.yaw_rate_max_deg_s, 60.0),
         "missing MPC_YAWRAUTO_MAX must keep PX4 default");
 
@@ -183,6 +185,7 @@ int main()
     replace_once(explicit_trajectory, position_marker,
         position_marker
         + "      \"trajectory_generation\": 1,\n"
+          "      \"trajectory_update_interval_ms\": 20,\n"
           "      \"MPC_XY_CRUISE\": 4.1,\n"
           "      \"MPC_ACC_HOR\": 2.2,\n"
           "      \"MPC_JERK_AUTO\": 3.3,\n"
@@ -198,6 +201,8 @@ int main()
           "      \"MPC_YAWRAUTO_ACC\": 15.0,\n");
     const auto trajectory = loader.load_from_text(explicit_trajectory).position_control.trajectory;
     require(trajectory.enabled, "trajectory_generation must enable trajectory");
+    require(nearly_equal(trajectory.update_interval_sec, 0.020),
+        "trajectory_update_interval_ms must be converted to seconds");
     require(nearly_equal(trajectory.cruise_speed_mps, 4.1), "MPC_XY_CRUISE not loaded");
     require(nearly_equal(trajectory.acceleration_xy_mps2, 2.2), "MPC_ACC_HOR not loaded");
     require(nearly_equal(trajectory.jerk_mps3, 3.3), "MPC_JERK_AUTO not loaded");

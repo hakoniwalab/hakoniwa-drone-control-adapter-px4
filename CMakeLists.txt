@@ -262,6 +262,17 @@ add_test(
     COMMAND px4_position_control_3d_backend_smoke
 )
 
+add_executable(px4_trajectory_update_interval_test
+    test/px4_trajectory_update_interval_test.cpp
+)
+target_link_libraries(px4_trajectory_update_interval_test
+    PRIVATE hakoniwa_drone_control_adapter_px4
+)
+if(HAKO_EKF_IMU_ACCELERATION)
+    target_compile_definitions(px4_trajectory_update_interval_test PRIVATE HAKO_EKF_IMU_ACCELERATION)
+endif()
+add_test(NAME px4_trajectory_update_interval_test COMMAND px4_trajectory_update_interval_test)
+
 add_executable(px4_manual_yaw_lock_test
     test/px4_manual_yaw_lock_test.cpp
 )

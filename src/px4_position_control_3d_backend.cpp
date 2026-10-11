@@ -7,7 +7,9 @@
 #include <motion_planning/PositionSmoothing.hpp>
 #endif
 
+#include <algorithm>
 #include <cfloat>
+#include <optional>
 #include <cmath>
 
 namespace hakoniwa::drone::control_adapter {
@@ -114,6 +116,18 @@ struct Px4PositionControl3DBackend::TrajectoryState {
     matrix::Vector3f previous_waypoint{};
     matrix::Vector3f target{};
     float unsmoothed_velocity_z{0.f};
+    // update_interval_sec: time since start, of the last update (uORB SubscriptionInterval), and the
+    // setpoint held until the next one.
+    double time_sec{0.0};
+    double last_update_sec{0.0};  // SubscriptionInterval's reference (advances by the interval)
+    double last_run_sec{0.0};     // FlightModeManager's _time_stamp_last_loop (its dt)
+    bool held_valid{false};
+    float held_position[3]{};
+    float held_velocity[3]{};
+    float held_acceleration[3]{};
+    float held_yaw{NAN};
+    float held_yawspeed{NAN};
+    std::optional<double> held_yaw_rate{};
 };
 #else
 struct Px4PositionControl3DBackend::TrajectoryState {};
@@ -208,6 +222,32 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
     const matrix::Vector3f velocity = to_px4_vector(input.state.velocity);
     const matrix::Vector3f target = to_px4_vector(input.target_position);
 
+    // FlightModeManager runs only when its position subscription interval has passed (uORB
+    // SubscriptionInterval: the last update advances by the interval, kept within one interval of now).
+    float trajectory_dt = dt_sec;
+    if (config_.trajectory.update_interval_sec > 0.0 && trajectory.started) {
+        trajectory.time_sec += dt_sec;
+        const double interval = config_.trajectory.update_interval_sec;
+        // A new target waits for the next update too (FlightModeManager runs on the position, not on
+        // the navigator's setpoint).
+        if (trajectory.held_valid && trajectory.time_sec - trajectory.last_update_sec + 1e-9 < interval) {
+            for (int axis = 0; axis < 3; ++axis) {
+                setpoint.position[axis] = trajectory.held_position[axis];
+                setpoint.velocity[axis] = trajectory.held_velocity[axis];
+                setpoint.acceleration[axis] = trajectory.held_acceleration[axis];
+            }
+            if (input.target_yaw_rad) {
+                setpoint.yaw = trajectory.held_yaw;
+                setpoint.yawspeed = trajectory.held_yawspeed;
+            }
+            return input.target_yaw_rad ? trajectory.held_yaw_rate : input.target_yaw_rate_rad_sec;
+        }
+        trajectory_dt = static_cast<float>(trajectory.time_sec - trajectory.last_run_sec);
+        trajectory.last_run_sec = trajectory.time_sec;
+        trajectory.last_update_sec = std::clamp(trajectory.last_update_sec + interval,
+                                                trajectory.time_sec - interval, trajectory.time_sec);
+    }
+
     if (!trajectory.started) {
         // FlightTaskAuto::activate: start from the vehicle's state.
         trajectory.position.reset(matrix::Vector3f{0.f, 0.f, 0.f}, velocity, position);
@@ -216,6 +256,10 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
         trajectory.target = target;
         trajectory.unsmoothed_velocity_z = 0.f;
         trajectory.started = true;
+        trajectory.time_sec = 0.0;
+        trajectory.last_update_sec = 0.0;
+        trajectory.last_run_sec = 0.0;
+        trajectory.held_valid = false;
     }
     else if ((target - trajectory.target).longerThan(1e-3f)) {
         // A new reposition: navigator stores the vehicle's position as the previous waypoint.
@@ -245,26 +289,34 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
     const matrix::Vector3f waypoints[3] = {trajectory.previous_waypoint, trajectory.target, trajectory.target};
     const matrix::Vector3f feedforward_velocity{NAN, NAN, NAN};
     PositionSmoothing::PositionSmoothingSetpoints smoothed{};
-    smoothing.generateSetpoints(position, waypoints, feedforward_velocity, dt_sec, false, smoothed);
+    smoothing.generateSetpoints(position, waypoints, feedforward_velocity, trajectory_dt, false, smoothed);
     trajectory.unsmoothed_velocity_z = smoothed.unsmoothed_velocity(2);
 
     for (int axis = 0; axis < 3; ++axis) {
         setpoint.position[axis] = smoothed.position(axis);
         setpoint.velocity[axis] = smoothed.velocity(axis);
         setpoint.acceleration[axis] = smoothed.acceleration(axis);
+        trajectory.held_position[axis] = setpoint.position[axis];
+        trajectory.held_velocity[axis] = setpoint.velocity[axis];
+        trajectory.held_acceleration[axis] = setpoint.acceleration[axis];
     }
+    trajectory.held_valid = true;
 
     // FlightTaskAuto::_smoothYaw: only a yaw target is smoothed; a yaw-rate command passes through.
     if (!input.target_yaw_rad) {
         trajectory.heading.reset(f64(input.state.yaw_rad), 0.f);
+        trajectory.held_yaw_rate = input.target_yaw_rate_rad_sec;
         return input.target_yaw_rate_rad_sec;
     }
     trajectory.heading.setMaxHeadingRate(f64(cfg.yaw_rate_max_deg_s * M_PI / 180.0));
     trajectory.heading.setMaxHeadingAccel(f64(cfg.yaw_acceleration_max_deg_s2 * M_PI / 180.0));
-    trajectory.heading.update(f64(*input.target_yaw_rad), dt_sec);
+    trajectory.heading.update(f64(*input.target_yaw_rad), trajectory_dt);
     setpoint.yaw = trajectory.heading.getSmoothedHeading();
     setpoint.yawspeed = trajectory.heading.getSmoothedHeadingRate();
-    return static_cast<double>(setpoint.yawspeed);
+    trajectory.held_yaw = setpoint.yaw;
+    trajectory.held_yawspeed = setpoint.yawspeed;
+    trajectory.held_yaw_rate = static_cast<double>(setpoint.yawspeed);
+    return trajectory.held_yaw_rate;
 }
 #endif
 

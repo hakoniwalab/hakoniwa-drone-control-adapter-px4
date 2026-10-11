@@ -227,6 +227,9 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
         config.position_control.manual_yaw_lock = has_key(text, "manual_yaw_lock")
             && extract_number(text, "manual_yaw_lock") != 0.0;
         optional("MPC_XY_CRUISE", trajectory.cruise_speed_mps);
+        if (has_key(text, "trajectory_update_interval_ms")) {
+            trajectory.update_interval_sec = extract_number(text, "trajectory_update_interval_ms") / 1000.0;
+        }
         optional("MPC_ACC_HOR", trajectory.acceleration_xy_mps2);
         optional("MPC_JERK_AUTO", trajectory.jerk_mps3);
         optional("MPC_XY_TRAJ_P", trajectory.trajectory_gain_xy);

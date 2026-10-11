@@ -29,6 +29,11 @@ struct Px4PositionTrajectoryConfig {
     double velocity_down_mps{1.5};         // MPC_Z_V_AUTO_DN
     double yaw_rate_max_deg_s{60.0};       // MPC_YAWRAUTO_MAX
     double yaw_acceleration_max_deg_s2{20.0};  // MPC_YAWRAUTO_ACC
+    // PX4's FlightModeManager takes the vehicle position at most every 20 ms (set_interval_us(20_ms)), so
+    // the trajectory setpoint is new only every second or third position-control cycle and held in
+    // between; the position error then grows by speed x cycle until the next update. 0: every cycle.
+    // position_control.trajectory_update_interval_ms.
+    double update_interval_sec{0.0};
 };
 
 struct Px4PositionControl3DBackendConfig {
