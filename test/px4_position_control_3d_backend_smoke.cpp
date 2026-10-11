@@ -185,6 +185,48 @@ int main()
     const auto after_velocity = smoothed_backend.run_position(distant_target, 0.01);
     require(nearly_equal(after_velocity.debug_thrust_sp->x, smoothed.debug_thrust_sp->x),
         "run_velocity must restart the next position trajectory");
+
+    Px4PositionControl3DBackendConfig takeoff_config = trajectory_config;
+    takeoff_config.velocity_p_z = 10.0;
+    takeoff_config.velocity_max_up_mps = 3.0;
+    takeoff_config.trajectory.takeoff_profile = true;
+    takeoff_config.trajectory.spoolup_sec = 1.0;
+    takeoff_config.trajectory.takeoff_ramp_sec = 3.0;
+    takeoff_config.trajectory.takeoff_speed_mps = 1.5;
+    PositionControl3DPositionInput takeoff_input{};
+    takeoff_input.state = hover_state;
+    takeoff_input.target_position = {0.0, 0.0, -5.0};
+
+    Px4PositionControl3DBackend takeoff_backend(takeoff_config);
+    const auto spool = takeoff_backend.run_position(takeoff_input, 0.01);
+    require(std::fabs(spool.thrust.body_z) < 1e-6,
+        "takeoff profile must command no thrust during COM_SPOOLUP_TIME");
+
+    Px4PositionControl3DBackendConfig no_takeoff_config = takeoff_config;
+    no_takeoff_config.trajectory.takeoff_profile = false;
+    Px4PositionControl3DBackend no_takeoff_backend(no_takeoff_config);
+    const auto legacy_takeoff = no_takeoff_backend.run_position(takeoff_input, 0.01);
+    require(std::fabs(legacy_takeoff.thrust.body_z) > 0.1,
+        "takeoff_profile off must preserve ordinary trajectory tracking");
+
+    takeoff_backend.reset();
+    const auto spool_after_reset = takeoff_backend.run_position(takeoff_input, 0.01);
+    require(std::fabs(spool_after_reset.thrust.body_z) < 1e-6,
+        "reset must allow the takeoff spool-up to start again");
+
+    PositionControl3DPositionInput too_low = takeoff_input;
+    too_low.target_position.z = -0.5;
+    Px4PositionControl3DBackend threshold_backend(takeoff_config);
+    const auto ordinary_low_target = threshold_backend.run_position(too_low, 0.01);
+    require(std::fabs(ordinary_low_target.thrust.body_z) > 0.1,
+        "a target only 0.5 m above the vehicle must not start takeoff");
+
+    PositionControl3DPositionInput moving = takeoff_input;
+    moving.state.velocity.z = -0.2;
+    Px4PositionControl3DBackend moving_backend(takeoff_config);
+    const auto ordinary_moving = moving_backend.run_position(moving, 0.01);
+    require(std::fabs(ordinary_moving.thrust.body_z) > 0.1,
+        "vertical speed at the 0.2 m/s boundary must not start takeoff");
 #endif
 
     return EXIT_SUCCESS;

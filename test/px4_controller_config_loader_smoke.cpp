@@ -136,6 +136,18 @@ int main()
         "missing trajectory_update_interval_ms must update every call");
     require(nearly_equal(config.position_control.trajectory.yaw_rate_max_deg_s, 60.0),
         "missing MPC_YAWRAUTO_MAX must keep PX4 default");
+    require(!config.position_control.trajectory.takeoff_profile,
+        "missing takeoff_profile must preserve legacy behavior");
+    require(nearly_equal(config.position_control.trajectory.takeoff_speed_mps, 1.5),
+        "missing MPC_TKO_SPEED must keep PX4 default");
+    require(nearly_equal(config.position_control.trajectory.takeoff_ramp_sec, 3.0),
+        "missing MPC_TKO_RAMP_T must keep PX4 default");
+    require(nearly_equal(config.position_control.trajectory.spoolup_sec, 1.0),
+        "missing COM_SPOOLUP_TIME must keep PX4 default");
+    require(nearly_equal(config.position_control.trajectory.land_alt1_m, 10.0),
+        "missing MPC_LAND_ALT1 must keep PX4 default");
+    require(nearly_equal(config.position_control.trajectory.tilt_max_land_rad, 12.0 * M_PI / 180.0),
+        "missing MPC_TILTMAX_LND must keep PX4 default and convert it to radians");
     require(config.sensor_data_types.imu == sensor_data_type::kExact,
         "missing sensor_data_types.imu must default to exact");
     require(config.sensor_data_types.gps == sensor_data_type::kExact,
@@ -250,7 +262,13 @@ int main()
           "      \"MPC_Z_V_AUTO_UP\": 2.5,\n"
           "      \"MPC_Z_V_AUTO_DN\": 1.1,\n"
           "      \"MPC_YAWRAUTO_MAX\": 55.0,\n"
-          "      \"MPC_YAWRAUTO_ACC\": 15.0,\n");
+          "      \"MPC_YAWRAUTO_ACC\": 15.0,\n"
+          "      \"takeoff_profile\": 1,\n"
+          "      \"MPC_TKO_SPEED\": 1.2,\n"
+          "      \"MPC_TKO_RAMP_T\": 2.5,\n"
+          "      \"COM_SPOOLUP_TIME\": 0.8,\n"
+          "      \"MPC_LAND_ALT1\": 7.0,\n"
+          "      \"MPC_TILTMAX_LND\": 15.0,\n");
     const auto trajectory = loader.load_from_text(explicit_trajectory).position_control.trajectory;
     require(trajectory.enabled, "trajectory_generation must enable trajectory");
     require(nearly_equal(trajectory.update_interval_sec, 0.020),
@@ -272,6 +290,13 @@ int main()
     require(nearly_equal(trajectory.velocity_down_mps, 1.1), "MPC_Z_V_AUTO_DN not loaded");
     require(nearly_equal(trajectory.yaw_rate_max_deg_s, 55.0), "MPC_YAWRAUTO_MAX not loaded");
     require(nearly_equal(trajectory.yaw_acceleration_max_deg_s2, 15.0), "MPC_YAWRAUTO_ACC not loaded");
+    require(trajectory.takeoff_profile, "takeoff_profile not loaded");
+    require(nearly_equal(trajectory.takeoff_speed_mps, 1.2), "MPC_TKO_SPEED not loaded");
+    require(nearly_equal(trajectory.takeoff_ramp_sec, 2.5), "MPC_TKO_RAMP_T not loaded");
+    require(nearly_equal(trajectory.spoolup_sec, 0.8), "COM_SPOOLUP_TIME not loaded");
+    require(nearly_equal(trajectory.land_alt1_m, 7.0), "MPC_LAND_ALT1 not loaded");
+    require(nearly_equal(trajectory.tilt_max_land_rad, 15.0 * M_PI / 180.0),
+        "MPC_TILTMAX_LND must be converted to radians");
 
     std::cout << "loader smoke test passed" << std::endl;
     return EXIT_SUCCESS;
