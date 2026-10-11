@@ -525,3 +525,39 @@ foreach(filter_mode IN ITEMS on off)
     endif()
     add_test(NAME ${filter_test} COMMAND ${filter_test})
 endforeach()
+
+# Compile the EKF adapter itself in both modes so the PX4-default overlay and the legacy OFF behavior
+# are verified independently of the option selected for the main library.
+foreach(ekf_default_mode IN ITEMS on off)
+    set(ekf_default_test px4_ekf_defaults_${ekf_default_mode}_smoke)
+    add_executable(${ekf_default_test}
+        test/px4_ekf_defaults_smoke.cpp
+        src/px4_ekf_adapter.cpp
+    )
+    target_include_directories(${ekf_default_test} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${PX4_ROOT}/src
+        ${PX4_ROOT}/src/lib
+        ${PX4_ROOT}/src/lib/atmosphere
+        ${PX4_ROOT}/src/lib/geo
+        ${PX4_ROOT}/src/lib/lat_lon_alt
+        ${PX4_ROOT}/src/lib/matrix
+        ${PX4_ROOT}/src/lib/ringbuffer
+        ${PX4_ROOT}/src/lib/world_magnetic_model
+        ${PX4_ROOT}/src/modules/ekf2
+        ${PX4_ROOT}/src/modules/ekf2/EKF
+        ${PX4_ROOT}/src/modules/ekf2/EKF/python
+    )
+    target_compile_definitions(${ekf_default_test} PRIVATE
+        CONFIG_EKF2_GNSS=1
+        CONFIG_EKF2_BAROMETER=1
+        CONFIG_EKF2_MAGNETOMETER=1
+    )
+    target_link_libraries(${ekf_default_test} PRIVATE hakoniwa_drone_control_adapter_px4)
+    if(ekf_default_mode STREQUAL "on")
+        target_compile_definitions(${ekf_default_test} PRIVATE
+            HAKO_EKF_IMU_ACCELERATION
+            EXPECT_PX4_EKF_DEFAULTS)
+    endif()
+    add_test(NAME ${ekf_default_test} COMMAND ${ekf_default_test})
+endforeach()

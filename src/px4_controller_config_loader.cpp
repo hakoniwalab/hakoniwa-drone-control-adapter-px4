@@ -159,6 +159,10 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
     if (has_key(text, "IMU_GYRO_CUTOFF")) {
         config.rate_control.imu_filters.gyro_cutoff_hz = extract_number(text, "IMU_GYRO_CUTOFF");
     }
+    // MC_YAW_TQ_CUTOFF is optional; 0 (off) when absent. HAKO_EKF_IMU_ACCELERATION build only.
+    if (has_key(text, "MC_YAW_TQ_CUTOFF")) {
+        config.rate_control.yaw_torque_cutoff_hz = extract_number(text, "MC_YAW_TQ_CUTOFF");
+    }
     if (has_key(text, "IMU_DGYRO_CUTOFF")) {
         config.rate_control.imu_filters.dgyro_cutoff_hz = extract_number(text, "IMU_DGYRO_CUTOFF");
     }

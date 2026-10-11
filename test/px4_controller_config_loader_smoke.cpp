@@ -120,6 +120,8 @@ int main()
         "missing IMU_GYRO_CUTOFF must keep PX4 default 40 Hz");
     require(nearly_equal(config.rate_control.imu_filters.dgyro_cutoff_hz, 20.0),
         "missing IMU_DGYRO_CUTOFF must keep PX4 default 20 Hz");
+    require(nearly_equal(config.rate_control.yaw_torque_cutoff_hz, 0.0),
+        "missing MC_YAW_TQ_CUTOFF must keep legacy filtering disabled");
     require(nearly_equal(config.altitude_control.velocity_filter.velocity_cutoff_hz, 0.0),
         "missing MPC_VEL_LP must keep PX4 default zero");
     require(nearly_equal(config.altitude_control.velocity_filter.velocity_derivative_cutoff_hz, 5.0),
@@ -168,12 +170,15 @@ int main()
     auto explicit_filters = sample_config_text();
     replace_once(explicit_filters, root_marker,
         "{\n  \"IMU_GYRO_CUTOFF\": 31.0,\n  \"IMU_DGYRO_CUTOFF\": 17.0,\n"
+        "  \"MC_YAW_TQ_CUTOFF\": 2.0,\n"
         "  \"MPC_VEL_LP\": 4.0,\n  \"MPC_VELD_LP\": 8.0,\n");
     const auto filter_config = loader.load_from_text(explicit_filters);
     require(nearly_equal(filter_config.rate_control.imu_filters.gyro_cutoff_hz, 31.0),
         "explicit IMU_GYRO_CUTOFF must be loaded");
     require(nearly_equal(filter_config.rate_control.imu_filters.dgyro_cutoff_hz, 17.0),
         "explicit IMU_DGYRO_CUTOFF must be loaded");
+    require(nearly_equal(filter_config.rate_control.yaw_torque_cutoff_hz, 2.0),
+        "explicit MC_YAW_TQ_CUTOFF must be loaded");
     require(nearly_equal(filter_config.altitude_control.velocity_filter.velocity_cutoff_hz, 4.0),
         "explicit MPC_VEL_LP must be loaded");
     require(nearly_equal(filter_config.horizontal_control.velocity_filter.velocity_derivative_cutoff_hz, 8.0),

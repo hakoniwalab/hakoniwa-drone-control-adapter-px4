@@ -62,6 +62,50 @@ void test_rate_filters()
 #endif
 }
 
+void test_yaw_torque_filter()
+{
+    Px4RateControlBackendConfig config{};
+    config.gains.roll.p = 1.0;
+    config.gains.pitch.p = 1.0;
+    config.gains.yaw.p = 1.0;
+    config.yaw_torque_cutoff_hz = 2.0;
+    Px4RateControlBackend backend(config);
+
+    RateControlInput input{};
+    input.target = {1.0, 1.0, 1.0};
+    input.dt_sec = 0.004;
+    const auto first = backend.run(input);
+
+#ifdef EXPECT_IMU_FILTERS
+    constexpr double time_constant = 1.0 / (2.0 * 3.14159265358979323846 * 2.0);
+    constexpr double alpha = 0.004 / (time_constant + 0.004);
+    require(std::fabs(first.x - 1.0) < 1e-6 && std::fabs(first.y - 1.0) < 1e-6,
+        "yaw torque filter must not alter roll or pitch");
+    require(std::fabs(first.z - alpha) < 1e-6,
+        "2 Hz yaw torque filter must follow PX4 AlphaFilter's first-step equation");
+    const auto second = backend.run(input);
+    const double expected_second = alpha + alpha * (1.0 - alpha);
+    require(std::fabs(second.z - expected_second) < 1e-6,
+        "yaw torque filter must retain its AlphaFilter state");
+    backend.reset();
+    require(std::fabs(backend.run(input).z - alpha) < 1e-6,
+        "reset must clear yaw torque filter state to zero");
+#else
+    require(std::fabs(first.x - 1.0) < 1e-6 && std::fabs(first.y - 1.0) < 1e-6
+            && std::fabs(first.z - 1.0) < 1e-6,
+        "OFF build must leave every torque axis unchanged");
+#endif
+
+    Px4RateControlBackendConfig disabled_config = config;
+    disabled_config.yaw_torque_cutoff_hz = 0.0;
+    Px4RateControlBackend disabled(disabled_config);
+    const auto disabled_output = disabled.run(input);
+    require(std::fabs(disabled_output.x - 1.0) < 1e-6
+            && std::fabs(disabled_output.y - 1.0) < 1e-6
+            && std::fabs(disabled_output.z - 1.0) < 1e-6,
+        "zero or missing MC_YAW_TQ_CUTOFF must preserve the legacy output");
+}
+
 void test_velocity_filter()
 {
     Px4VelocityStateFilter filter;
@@ -98,6 +142,7 @@ void test_velocity_filter()
 int main()
 {
     test_rate_filters();
+    test_yaw_torque_filter();
     test_velocity_filter();
     return EXIT_SUCCESS;
 }

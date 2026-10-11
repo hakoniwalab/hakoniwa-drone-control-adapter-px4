@@ -26,10 +26,29 @@ Px4EkfAdapter::~Px4EkfAdapter()
     ekf_ = nullptr;
 }
 
+#ifdef HAKO_EKF_IMU_ACCELERATION
+// The EKF library's own defaults (EKF/common.h) differ from PX4's parameter defaults (the EKF2_*
+// parameters PX4 loads), which are what PX4 runs with. Start from PX4's, as PX4 SITL does; the
+// configured parameters are applied over them. Only the fields this EKF build compiles are set.
+void apply_px4_parameter_defaults(::parameters& params)
+{
+    params.ekf2_delay_max = 200.f;     // EKF2_DELAY_MAX (library 110)
+    params.ekf2_acc_b_noise = 3.0e-3f; // EKF2_ACC_B_NOISE (library 1e-2)
+    params.ekf2_gnd_eff_dz = 4.f;      // EKF2_GND_EFF_DZ
+    params.ekf2_req_hdrift = 0.1f;     // EKF2_REQ_HDRIFT
+    params.ekf2_req_vdrift = 0.2f;     // EKF2_REQ_VDRIFT
+    params.ekf2_mag_check = 1;         // EKF2_MAG_CHECK
+    params.ekf2_gyr_b_lim = 0.15f;     // EKF2_GYR_B_LIM (library 0.4)
+}
+#endif
+
 void Px4EkfAdapter::reset()
 {
     delete ekf_;
     ekf_ = new ::Ekf();
+#ifdef HAKO_EKF_IMU_ACCELERATION
+    apply_px4_parameter_defaults(*ekf_->getParamHandle());
+#endif
     initialized_ = false;
     last_input_time_usec_ = 0;
 }

@@ -29,6 +29,7 @@ matrix::Vector3f to_vector3f(double x, double y, double z)
 struct Px4RateControlBackend::ImuFilters {
     math::LowPassFilter2p<float> rate[3]{};
     AlphaFilter<float> acceleration[3]{};
+    AlphaFilter<float> yaw_torque{};  // MC_YAW_TQ_CUTOFF (MulticopterRateControl::_output_lpf_yaw)
     float sample_rate_hz{0.0f};
     bool started{false};
 };
@@ -51,6 +52,7 @@ void Px4RateControlBackend::reset()
 {
     controller_->resetIntegral();
     imu_filters_->started = false;
+    imu_filters_->yaw_torque.reset(0.f);
 }
 
 BodyTorqueCommand Px4RateControlBackend::run(const RateControlInput& input)
@@ -99,12 +101,19 @@ BodyTorqueCommand Px4RateControlBackend::run(const RateControlInput& input)
     }
 #endif
 
-    const matrix::Vector3f torque = controller_->update(
+    matrix::Vector3f torque = controller_->update(
         rate,
         to_vector3f(input.target.p, input.target.q, input.target.r),
         angular_accel,
         static_cast<float>(is_valid_dt(input.dt_sec) ? input.dt_sec : 0.0),
         input.landed);
+#ifdef HAKO_EKF_IMU_ACCELERATION
+    if (config_.yaw_torque_cutoff_hz > 0.0 && is_valid_dt(input.dt_sec)) {
+        // MulticopterRateControl: low-pass filter the yaw torque against rotor acceleration.
+        imu_filters_->yaw_torque.setCutoffFreq(static_cast<float>(config_.yaw_torque_cutoff_hz));
+        torque(2) = imu_filters_->yaw_torque.update(torque(2), static_cast<float>(input.dt_sec));
+    }
+#endif
 
     return BodyTorqueCommand{
         torque(0),

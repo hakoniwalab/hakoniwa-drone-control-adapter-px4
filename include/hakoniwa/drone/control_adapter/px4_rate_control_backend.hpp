@@ -45,6 +45,10 @@ struct Px4RateControlBackendConfig {
     Px4RateControlLimits integrator_limits{};
     Px4RateControlFeedForward feed_forward{};
     Px4ImuFilterConfig imu_filters{};
+    // MC_YAW_TQ_CUTOFF: PX4's low-pass on the yaw torque after the rate controller (AlphaFilter,
+    // "high frequency torque caused by rotor acceleration"). 0: off, as before. HAKO_EKF_IMU_ACCELERATION
+    // build only.
+    double yaw_torque_cutoff_hz{0.0};
 };
 
 struct Px4RateControlBackendStatus {
