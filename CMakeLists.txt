@@ -135,19 +135,11 @@ target_compile_definitions(hakoniwa_drone_control_adapter_px4
         CONFIG_EKF2_MAGNETOMETER=1
 )
 
-# HAKO_ENABLE_FLIGHT_PHASE: the 3D position input carries the caller's flight phase (takeoff, landing) and the
-# interface revision changes with it. Public: a consumer of this package compiles the interface headers with
-# the same layout. Drone PRO must be built with the same setting. Off: the interface as before.
-option(HAKO_ENABLE_FLIGHT_PHASE "Pass the caller's flight phase to the 3D position stage" OFF)
-if(HAKO_ENABLE_FLIGHT_PHASE)
+# This switch must match Drone PRO. Public flight-phase support changes the
+# interface revision; the private definition enables the remaining PX4 SITL behavior.
+option(HAKO_ENABLE_SITL_EQUIVALENCE "Enable the complete set of temporary SITL-equivalence behavior" OFF)
+if(HAKO_ENABLE_SITL_EQUIVALENCE)
     target_compile_definitions(hakoniwa_drone_control_adapter_px4 PUBLIC HAKO_ENABLE_FLIGHT_PHASE)
-endif()
-
-# Drone PRO's HAKO_EKF_IMU_ACCELERATION: Drone PRO hands the controllers the IMU's rate and the gyro's
-# raw derivative, and the rate stage applies PX4's IMU filters (IMU_GYRO_CUTOFF, IMU_DGYRO_CUTOFF).
-# Build both with the same setting. Off: the inputs pass through unchanged, as before.
-option(HAKO_EKF_IMU_ACCELERATION "Apply PX4's IMU filters to the rate stage inputs" OFF)
-if(HAKO_EKF_IMU_ACCELERATION)
     target_compile_definitions(hakoniwa_drone_control_adapter_px4 PRIVATE HAKO_EKF_IMU_ACCELERATION)
     # PX4's Auto trajectory (FlightTaskAuto's PositionSmoothing and HeadingSmoothing) in the 3D
     # position stage, as PX4 SITL flies a reposition (px4_position_control_3d_backend.cpp).
@@ -156,6 +148,8 @@ if(HAKO_EKF_IMU_ACCELERATION)
         ${PX4_ROOT}/src/lib/motion_planning/VelocitySmoothing.cpp
         ${PX4_ROOT}/src/lib/motion_planning/HeadingSmoothing.cpp)
 endif()
+# Temporary until delivery: issue #175 removes this option and makes the
+# SITL-equivalence behavior the standard behavior.
 
 install(
     TARGETS hakoniwa_drone_control_adapter_px4
@@ -208,7 +202,7 @@ target_link_libraries(px4_rate_control_backend_smoke
     PRIVATE
         hakoniwa_drone_control_adapter_px4
 )
-if(HAKO_EKF_IMU_ACCELERATION)
+if(HAKO_ENABLE_SITL_EQUIVALENCE)
     target_compile_definitions(px4_rate_control_backend_smoke PRIVATE HAKO_EKF_IMU_ACCELERATION)
 endif()
 
@@ -279,7 +273,7 @@ add_executable(px4_trajectory_update_interval_test
 target_link_libraries(px4_trajectory_update_interval_test
     PRIVATE hakoniwa_drone_control_adapter_px4
 )
-if(HAKO_EKF_IMU_ACCELERATION)
+if(HAKO_ENABLE_SITL_EQUIVALENCE)
     target_compile_definitions(px4_trajectory_update_interval_test PRIVATE HAKO_EKF_IMU_ACCELERATION)
 endif()
 add_test(NAME px4_trajectory_update_interval_test COMMAND px4_trajectory_update_interval_test)
@@ -290,7 +284,7 @@ add_executable(px4_manual_yaw_lock_test
 target_link_libraries(px4_manual_yaw_lock_test
     PRIVATE hakoniwa_drone_control_adapter_px4
 )
-if(HAKO_EKF_IMU_ACCELERATION)
+if(HAKO_ENABLE_SITL_EQUIVALENCE)
     target_compile_definitions(px4_manual_yaw_lock_test PRIVATE HAKO_EKF_IMU_ACCELERATION)
 endif()
 add_test(NAME px4_manual_yaw_lock_test COMMAND px4_manual_yaw_lock_test)
