@@ -563,6 +563,10 @@ void Px4PositionControl3DBackend::apply_landing(PositionControl3DPositionInput& 
     tr.land_velocity += tr.land_acceleration * dt_sec;
     input.target_position.z = input.state.position.z;
     input.feedforward_velocity = Vector3D{0.0, 0.0, tr.land_velocity};
+    // PX4 sends the ramp's acceleration with the descent speed (trajectory_setpoint.acceleration[2], up to
+    // about 1.4 m/s^2 at the start of the descent). Without it a heavy vehicle lagged the descent and touched
+    // down 0.2 s later than PX4 SITL (x500 0.09 s, 2026-10-17).
+    input.feedforward_acceleration = Vector3D{0.0, 0.0, tr.land_acceleration};
 }
 #endif
 #endif
