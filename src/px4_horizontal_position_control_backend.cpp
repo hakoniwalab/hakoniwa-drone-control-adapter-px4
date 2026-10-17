@@ -61,10 +61,8 @@ HorizontalTiltTarget Px4HorizontalPositionControlBackend::run(
     state.position = matrix::Vector3f{f64(input.position.x), f64(input.position.y), 0.0f};
     state.velocity = matrix::Vector3f{f64(input.velocity.vx), f64(input.velocity.vy), 0.0f};
     state.acceleration = matrix::Vector3f{f64(input.acceleration.ax), f64(input.acceleration.ay), 0.0f};
-#ifdef HAKO_EKF_IMU_ACCELERATION
     // MulticopterPositionControl: the filtered velocity and its filtered derivative, not Drone PRO's acceleration.
     velocity_filter_->apply(state.velocity, state.acceleration, f64(dt_sec > 0.0 ? dt_sec : 0.0));
-#endif
     state.yaw = f64(input.yaw_rad);
     controller_->setState(state);
 

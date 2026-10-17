@@ -15,7 +15,7 @@ namespace hakoniwa::drone::control_adapter {
 class Px4VelocityStateFilter;
 
 // PX4 Auto trajectory (FlightTaskAuto::_updateTrajConstraints, _smoothYaw); PX4's defaults.
-// Used only in a HAKO_EKF_IMU_ACCELERATION build, and only when enabled in the PX4 controller config
+// Used only in a standard PX4 behavior build, and only when enabled in the PX4 controller config
 // (position_control.trajectory_generation 1, set by the PX4 SITL timing profile).
 struct Px4PositionTrajectoryConfig {
     bool enabled{false};
@@ -57,19 +57,19 @@ struct Px4PositionTrajectoryConfig {
     // holding the altitude setpoint at the vehicle's, until the vehicle is within NAV_MC_ALT_RAD of the takeoff
     // height (navigator completes the takeoff and loiters there); until the ramp-up FlightModeManager re-activates the
     // task every update (FlightTaskAuto::reActivate: the trajectory restarts at the vehicle's position with
-    // 0.7 m/s down). HAKO_EKF_IMU_ACCELERATION build only.
+    // 0.7 m/s down). standard PX4 behavior build only.
     bool takeoff_profile{false};
     double takeoff_speed_mps{1.5};           // MPC_TKO_SPEED
     double takeoff_ramp_sec{3.0};            // MPC_TKO_RAMP_T
     double spoolup_sec{1.0};                 // COM_SPOOLUP_TIME
     double land_alt1_m{10.0};                // MPC_LAND_ALT1
     double tilt_max_land_rad{0.20943951};    // MPC_TILTMAX_LND (12 deg)
-    // HAKO_ENABLE_FLIGHT_PHASE: the caller's phase starts the takeoff above (no inference from the target once
+    // flight-phase support: the caller's phase starts the takeoff above (no inference from the target once
     // the caller has sent a phase), and a Landing phase descends as FlightTaskAuto::_prepareLandSetpoints
     // (position_control.landing_profile 1; off: the landing target is tracked as any position target). The
     // speed is interpolated between MPC_LAND_SPEED at MPC_LAND_ALT2 and MPC_Z_V_AUTO_DN at MPC_LAND_ALT1 by the
     // height above the takeoff point, shaped within MPC_ACC_DOWN_MAX and MPC_JERK_AUTO; the horizontal target
-    // is held. HAKO_EKF_IMU_ACCELERATION build only.
+    // is held. standard PX4 behavior build only.
     bool landing_profile{false};
     double land_speed_mps{0.7};              // MPC_LAND_SPEED
     double land_alt2_m{5.0};                 // MPC_LAND_ALT2
@@ -101,7 +101,7 @@ struct Px4PositionControl3DBackendConfig {
     Px4PositionTrajectoryConfig trajectory{};
     // PX4's manual heading lock (StickYaw::updateYawLock): a velocity target without a yaw holds the
     // heading at which the yaw stick came back to 0, and follows the vehicle while the stick turns it.
-    // Off: the heading setpoint is the vehicle's own (no hold). HAKO_EKF_IMU_ACCELERATION build only,
+    // Off: the heading setpoint is the vehicle's own (no hold). standard PX4 behavior build only,
     // enabled by position_control.manual_yaw_lock 1 (set by the PX4 SITL timing profile).
     bool manual_yaw_lock{false};
 };
@@ -125,22 +125,18 @@ public:
 
 private:
     void apply_config();
-#ifdef HAKO_EKF_IMU_ACCELERATION
     std::optional<double> apply_trajectory(
         const PositionControl3DPositionInput& input,
         float dt_sec,
         ::trajectory_setpoint_s& setpoint);
     void apply_takeoff(::trajectory_setpoint_s& setpoint, double dt_sec);
-#ifdef HAKO_ENABLE_FLIGHT_PHASE
     void apply_landing(PositionControl3DPositionInput& input, double dt_sec);
-#endif
-#endif
 
     Px4PositionControl3DBackendConfig config_{};
     ::PositionControl* controller_{nullptr};
     Px4VelocityStateFilter* velocity_filter_{nullptr};
     struct TrajectoryState;
-    TrajectoryState* trajectory_{nullptr};  // HAKO_EKF_IMU_ACCELERATION build only
+    TrajectoryState* trajectory_{nullptr};  // standard PX4 behavior build only
     void advance_trajectory_clock(double dt_sec);
     bool yaw_locked_{false};                 // manual_yaw_lock: a heading is held
     double locked_yaw_rad_{0.0};

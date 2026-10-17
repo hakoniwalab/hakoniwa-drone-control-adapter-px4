@@ -60,7 +60,6 @@ PositionControl3DPositionInput target(double x = 30.0, double yaw = M_PI_2)
 
 int main()
 {
-#ifdef HAKO_EKF_IMU_ACCELERATION
     const auto original = target();
     Px4PositionControl3DBackend interval_backend(config(0.020));
     std::vector<PositionControl3DOutput> outputs;
@@ -146,13 +145,5 @@ int main()
     const auto every_second = every_call.run_position(original, 0.008);
     require(!nearly_equal(thrust_x(every_first), thrust_x(every_second), 1e-8),
         "zero interval must preserve the every-call behavior");
-#else
-    // The option is inactive in an OFF build: a changed target takes effect immediately.
-    Px4PositionControl3DBackend backend(config(0.020));
-    const auto positive = backend.run_position(target(30.0, 0.0), 0.008);
-    const auto negative = backend.run_position(target(-30.0, 0.0), 0.008);
-    require(thrust_x(positive) * thrust_x(negative) < 0.0,
-        "OFF build must ignore the trajectory interval and apply a changed target immediately");
-#endif
     return EXIT_SUCCESS;
 }

@@ -135,21 +135,12 @@ target_compile_definitions(hakoniwa_drone_control_adapter_px4
         CONFIG_EKF2_MAGNETOMETER=1
 )
 
-# This switch must match Drone PRO. Public flight-phase support changes the
-# interface revision; the private definition enables the remaining PX4 SITL behavior.
-option(HAKO_ENABLE_SITL_EQUIVALENCE "Enable the complete set of temporary SITL-equivalence behavior" OFF)
-if(HAKO_ENABLE_SITL_EQUIVALENCE)
-    target_compile_definitions(hakoniwa_drone_control_adapter_px4 PUBLIC HAKO_ENABLE_FLIGHT_PHASE)
-    target_compile_definitions(hakoniwa_drone_control_adapter_px4 PRIVATE HAKO_EKF_IMU_ACCELERATION)
-    # PX4's Auto trajectory (FlightTaskAuto's PositionSmoothing and HeadingSmoothing) in the 3D
-    # position stage, as PX4 SITL flies a reposition (px4_position_control_3d_backend.cpp).
-    target_sources(hakoniwa_drone_control_adapter_px4 PRIVATE
-        ${PX4_ROOT}/src/lib/motion_planning/PositionSmoothing.cpp
-        ${PX4_ROOT}/src/lib/motion_planning/VelocitySmoothing.cpp
-        ${PX4_ROOT}/src/lib/motion_planning/HeadingSmoothing.cpp)
-endif()
-# Temporary until delivery: issue #175 removes this option and makes the
-# SITL-equivalence behavior the standard behavior.
+# PX4's Auto trajectory (FlightTaskAuto's PositionSmoothing and HeadingSmoothing) in the 3D
+# position stage, as PX4 SITL flies a reposition (px4_position_control_3d_backend.cpp).
+target_sources(hakoniwa_drone_control_adapter_px4 PRIVATE
+    ${PX4_ROOT}/src/lib/motion_planning/PositionSmoothing.cpp
+    ${PX4_ROOT}/src/lib/motion_planning/VelocitySmoothing.cpp
+    ${PX4_ROOT}/src/lib/motion_planning/HeadingSmoothing.cpp)
 
 install(
     TARGETS hakoniwa_drone_control_adapter_px4
@@ -202,9 +193,6 @@ target_link_libraries(px4_rate_control_backend_smoke
     PRIVATE
         hakoniwa_drone_control_adapter_px4
 )
-if(HAKO_ENABLE_SITL_EQUIVALENCE)
-    target_compile_definitions(px4_rate_control_backend_smoke PRIVATE HAKO_EKF_IMU_ACCELERATION)
-endif()
 
 add_test(
     NAME px4_rate_control_backend_smoke
@@ -273,9 +261,6 @@ add_executable(px4_trajectory_update_interval_test
 target_link_libraries(px4_trajectory_update_interval_test
     PRIVATE hakoniwa_drone_control_adapter_px4
 )
-if(HAKO_ENABLE_SITL_EQUIVALENCE)
-    target_compile_definitions(px4_trajectory_update_interval_test PRIVATE HAKO_EKF_IMU_ACCELERATION)
-endif()
 add_test(NAME px4_trajectory_update_interval_test COMMAND px4_trajectory_update_interval_test)
 
 add_executable(px4_manual_yaw_lock_test
@@ -284,9 +269,6 @@ add_executable(px4_manual_yaw_lock_test
 target_link_libraries(px4_manual_yaw_lock_test
     PRIVATE hakoniwa_drone_control_adapter_px4
 )
-if(HAKO_ENABLE_SITL_EQUIVALENCE)
-    target_compile_definitions(px4_manual_yaw_lock_test PRIVATE HAKO_EKF_IMU_ACCELERATION)
-endif()
 add_test(NAME px4_manual_yaw_lock_test COMMAND px4_manual_yaw_lock_test)
 
 add_executable(px4_ekf_sensor_delay_smoke
@@ -513,60 +495,48 @@ add_test(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/compose_px4_rate_control_config_smoke.py
 )
 
-# Compile the rate backend itself twice so every test build checks both sides of
-# HAKO_EKF_IMU_ACCELERATION, independently of the option used for the main library.
-foreach(filter_mode IN ITEMS on off)
-    set(filter_test px4_imu_velocity_filters_${filter_mode}_smoke)
-    add_executable(${filter_test}
-        test/px4_imu_velocity_filters_smoke.cpp
-        src/px4_rate_control_backend.cpp
-    )
-    target_include_directories(${filter_test} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${PX4_ROOT}/src
-        ${PX4_ROOT}/src/lib
-        ${PX4_ROOT}/src/lib/matrix
-        ${PX4_ROOT}/src/lib/rate_control
-    )
-    target_link_libraries(${filter_test} PRIVATE hakoniwa_drone_control_adapter_px4)
-    if(filter_mode STREQUAL "on")
-        target_compile_definitions(${filter_test} PRIVATE HAKO_EKF_IMU_ACCELERATION EXPECT_IMU_FILTERS)
-    endif()
-    add_test(NAME ${filter_test} COMMAND ${filter_test})
-endforeach()
+# The PX4 IMU filter path is standard behavior.
+set(filter_test px4_imu_velocity_filters_smoke)
+add_executable(${filter_test}
+    test/px4_imu_velocity_filters_smoke.cpp
+    src/px4_rate_control_backend.cpp
+)
+target_include_directories(${filter_test} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${PX4_ROOT}/src
+    ${PX4_ROOT}/src/lib
+    ${PX4_ROOT}/src/lib/matrix
+    ${PX4_ROOT}/src/lib/rate_control
+)
+target_link_libraries(${filter_test} PRIVATE hakoniwa_drone_control_adapter_px4)
+target_compile_definitions(${filter_test} PRIVATE EXPECT_IMU_FILTERS)
+add_test(NAME ${filter_test} COMMAND ${filter_test})
 
-# Compile the EKF adapter itself in both modes so the PX4-default overlay and the legacy OFF behavior
-# are verified independently of the option selected for the main library.
-foreach(ekf_default_mode IN ITEMS on off)
-    set(ekf_default_test px4_ekf_defaults_${ekf_default_mode}_smoke)
-    add_executable(${ekf_default_test}
-        test/px4_ekf_defaults_smoke.cpp
-        src/px4_ekf_adapter.cpp
-    )
-    target_include_directories(${ekf_default_test} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${PX4_ROOT}/src
-        ${PX4_ROOT}/src/lib
-        ${PX4_ROOT}/src/lib/atmosphere
-        ${PX4_ROOT}/src/lib/geo
-        ${PX4_ROOT}/src/lib/lat_lon_alt
-        ${PX4_ROOT}/src/lib/matrix
-        ${PX4_ROOT}/src/lib/ringbuffer
-        ${PX4_ROOT}/src/lib/world_magnetic_model
-        ${PX4_ROOT}/src/modules/ekf2
-        ${PX4_ROOT}/src/modules/ekf2/EKF
-        ${PX4_ROOT}/src/modules/ekf2/EKF/python
-    )
-    target_compile_definitions(${ekf_default_test} PRIVATE
-        CONFIG_EKF2_GNSS=1
-        CONFIG_EKF2_BAROMETER=1
-        CONFIG_EKF2_MAGNETOMETER=1
-    )
-    target_link_libraries(${ekf_default_test} PRIVATE hakoniwa_drone_control_adapter_px4)
-    if(ekf_default_mode STREQUAL "on")
-        target_compile_definitions(${ekf_default_test} PRIVATE
-            HAKO_EKF_IMU_ACCELERATION
-            EXPECT_PX4_EKF_DEFAULTS)
-    endif()
-    add_test(NAME ${ekf_default_test} COMMAND ${ekf_default_test})
-endforeach()
+# The adapter always starts from PX4's firmware EKF defaults.
+set(ekf_default_test px4_ekf_defaults_smoke)
+add_executable(${ekf_default_test}
+    test/px4_ekf_defaults_smoke.cpp
+    src/px4_ekf_adapter.cpp
+)
+target_include_directories(${ekf_default_test} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${PX4_ROOT}/src
+    ${PX4_ROOT}/src/lib
+    ${PX4_ROOT}/src/lib/atmosphere
+    ${PX4_ROOT}/src/lib/geo
+    ${PX4_ROOT}/src/lib/lat_lon_alt
+    ${PX4_ROOT}/src/lib/matrix
+    ${PX4_ROOT}/src/lib/ringbuffer
+    ${PX4_ROOT}/src/lib/world_magnetic_model
+    ${PX4_ROOT}/src/modules/ekf2
+    ${PX4_ROOT}/src/modules/ekf2/EKF
+    ${PX4_ROOT}/src/modules/ekf2/EKF/python
+)
+target_compile_definitions(${ekf_default_test} PRIVATE
+    CONFIG_EKF2_GNSS=1
+    CONFIG_EKF2_BAROMETER=1
+    CONFIG_EKF2_MAGNETOMETER=1
+    EXPECT_PX4_EKF_DEFAULTS
+)
+target_link_libraries(${ekf_default_test} PRIVATE hakoniwa_drone_control_adapter_px4)
+add_test(NAME ${ekf_default_test} COMMAND ${ekf_default_test})

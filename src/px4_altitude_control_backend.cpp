@@ -81,10 +81,8 @@ NormalizedVerticalThrustCommand Px4AltitudeControlBackend::run(const AltitudeCon
     state.position = matrix::Vector3f{0.0f, 0.0f, px4_z};
     state.velocity = matrix::Vector3f{0.0f, 0.0f, px4_vz};
     state.acceleration = matrix::Vector3f{0.0f, 0.0f, px4_az};
-#ifdef HAKO_EKF_IMU_ACCELERATION
     // MulticopterPositionControl: the filtered velocity and its filtered derivative, not Drone PRO's acceleration.
     velocity_filter_->apply(state.velocity, state.acceleration, dt);
-#endif
     state.yaw = 0.0f;
     controller_->setState(state);
 

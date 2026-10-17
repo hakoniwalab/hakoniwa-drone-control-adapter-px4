@@ -66,7 +66,6 @@ PositionControl3DOutput run(
 int main()
 {
     Px4PositionControl3DBackend backend(make_config(true));
-#ifdef HAKO_EKF_IMU_ACCELERATION
     require(nearly_equal(yaw_from_quaternion(run(backend, 0.3).target_attitude), 0.3),
         "lock must start at current yaw");
     require(nearly_equal(yaw_from_quaternion(run(backend, 0.9).target_attitude), 0.3),
@@ -82,11 +81,6 @@ int main()
     backend.reset();
     require(nearly_equal(yaw_from_quaternion(run(backend, 1.7).target_attitude), 1.7),
         "reset must clear the lock");
-#else
-    (void)run(backend, 0.3);
-    require(nearly_equal(yaw_from_quaternion(run(backend, 0.9).target_attitude), 0.9),
-        "OFF build must ignore manual_yaw_lock and follow current yaw");
-#endif
 
     Px4PositionControl3DBackend legacy(make_config(false));
     (void)run(legacy, 0.2);

@@ -162,7 +162,7 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
         extract_number(text, "CA_UPDATE_NORMALIZATION_SCALE") != 0.0;
     // CA_HOVER_DUTY is obsolete: allocation outputs normalized rotor thrust.
     // MPC_VEL_LP / MPC_VELD_LP are optional; PX4's defaults 0 (off) / 5 Hz. Applied only in a
-    // HAKO_EKF_IMU_ACCELERATION build (px4_velocity_filter_config.hpp).
+    // standard PX4 behavior build (px4_velocity_filter_config.hpp).
     {
         Px4VelocityFilterConfig velocity_filter{};
         if (has_key(text, "MPC_VEL_LP")) {
@@ -176,16 +176,16 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
         config.position_control.velocity_filter = velocity_filter;
     }
     // IMU_GYRO_CUTOFF / IMU_DGYRO_CUTOFF are optional; PX4's defaults 40 Hz / 20 Hz. Applied only in a
-    // HAKO_EKF_IMU_ACCELERATION build (px4_rate_control_backend.hpp).
+    // standard PX4 behavior build (px4_rate_control_backend.hpp).
     if (has_key(text, "IMU_GYRO_CUTOFF")) {
         config.rate_control.imu_filters.gyro_cutoff_hz = extract_number(text, "IMU_GYRO_CUTOFF");
     }
     config.sensor_data_types = extract_sensor_data_types(text);
     config.rate_control.imu_data_type = config.sensor_data_types.imu;
-    // The rate stage on the previous cycle's rates setpoint, optional (off); HAKO_EKF_IMU_ACCELERATION build only.
+    // The rate stage on the previous cycle's rates setpoint, optional (off); standard PX4 behavior build only.
     config.rate_control.previous_rates_setpoint = has_key(text, "previous_rates_setpoint")
         && extract_number(text, "previous_rates_setpoint") != 0.0;
-    // MC_YAW_TQ_CUTOFF is optional; 0 (off) when absent. HAKO_EKF_IMU_ACCELERATION build only.
+    // MC_YAW_TQ_CUTOFF is optional; 0 (off) when absent. standard PX4 behavior build only.
     if (has_key(text, "MC_YAW_TQ_CUTOFF")) {
         config.rate_control.yaw_torque_cutoff_hz = extract_number(text, "MC_YAW_TQ_CUTOFF");
     }
@@ -243,7 +243,7 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
         config.position_control.decouple_horizontal_and_vertical_acceleration =
             extract_position_or_legacy_parameter_number(text, "MPC_ACC_DECOUPLE") != 0.0;
 
-        // PX4 Auto trajectory, optional with PX4's defaults; used only in a HAKO_EKF_IMU_ACCELERATION
+        // PX4 Auto trajectory, optional with PX4's defaults; used only in a standard PX4 behavior
         // build (px4_position_control_3d_backend.hpp).
         auto& trajectory = config.position_control.trajectory;
         trajectory.enabled = has_key(text, "trajectory_generation")
@@ -253,17 +253,17 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
                 value = extract_number(text, key);
             }
         };
-        // PX4's manual heading lock, optional (off); HAKO_EKF_IMU_ACCELERATION build only.
+        // PX4's manual heading lock, optional (off); standard PX4 behavior build only.
         config.position_control.manual_yaw_lock = has_key(text, "manual_yaw_lock")
             && extract_number(text, "manual_yaw_lock") != 0.0;
         optional("MPC_XY_CRUISE", trajectory.cruise_speed_mps);
-        // PX4's automatic takeoff, optional (off); HAKO_EKF_IMU_ACCELERATION build only.
+        // PX4's automatic takeoff, optional (off); standard PX4 behavior build only.
         trajectory.takeoff_profile = has_key(text, "takeoff_profile") && extract_number(text, "takeoff_profile") != 0.0;
         optional("MPC_TKO_SPEED", trajectory.takeoff_speed_mps);
         optional("MPC_TKO_RAMP_T", trajectory.takeoff_ramp_sec);
         optional("COM_SPOOLUP_TIME", trajectory.spoolup_sec);
         optional("MPC_LAND_ALT1", trajectory.land_alt1_m);
-        // PX4's landing descent, optional (off); HAKO_ENABLE_FLIGHT_PHASE and HAKO_EKF_IMU_ACCELERATION builds only.
+        // PX4's landing descent, optional (off); flight-phase support and standard PX4 behavior builds only.
         trajectory.landing_profile = has_key(text, "landing_profile") && extract_number(text, "landing_profile") != 0.0;
         optional("MPC_LAND_SPEED", trajectory.land_speed_mps);
         optional("MPC_LAND_ALT2", trajectory.land_alt2_m);

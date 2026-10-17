@@ -34,7 +34,7 @@ struct Px4RateControlFeedForward {
 
 // PX4's IMU filters (sensors/vehicle_angular_velocity): IMU_GYRO_CUTOFF, the 2nd-order low-pass
 // on the angular rate, and IMU_DGYRO_CUTOFF, the 1st-order low-pass on the angular acceleration
-// (the D-term input). The adapter applies them only when built with HAKO_EKF_IMU_ACCELERATION,
+// (the D-term input). The adapter applies them only when built with standard PX4 behavior,
 // where Drone PRO hands it the IMU's rate and the gyro's raw derivative; without it the inputs pass
 // through unchanged. 0 disables a filter, as in PX4.
 struct Px4ImuFilterConfig {
@@ -48,7 +48,7 @@ struct Px4RateControlBackendConfig {
     Px4RateControlFeedForward feed_forward{};
     Px4ImuFilterConfig imu_filters{};
     // MC_YAW_TQ_CUTOFF: PX4's low-pass on the yaw torque after the rate controller (AlphaFilter,
-    // "high frequency torque caused by rotor acceleration"). 0: off, as before. HAKO_EKF_IMU_ACCELERATION
+    // "high frequency torque caused by rotor acceleration"). 0: off, as before. standard PX4 behavior
     // build only.
     double yaw_torque_cutoff_hz{0.0};
     // sensor_data_types.imu of the PX4 controller config (px4_sensor_data_type.hpp): imu_fifo_int16
@@ -58,7 +58,7 @@ struct Px4RateControlBackendConfig {
     // cycle, as PX4's mc_rate_control (rate_ctrl work queue, run on vehicle_angular_velocity) runs
     // before mc_att_control publishes the new vehicle_rates_setpoint from the same IMU sample (after
     // ekf2's vehicle_attitude): one IMU period (4 ms at 250 Hz) between the stages. Off: the same
-    // cycle's setpoint, as before. HAKO_EKF_IMU_ACCELERATION build only.
+    // cycle's setpoint, as before. standard PX4 behavior build only.
     bool previous_rates_setpoint{false};
 };
 

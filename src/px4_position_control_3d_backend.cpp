@@ -2,10 +2,8 @@
 #include "px4_velocity_state_filter.hpp"
 
 #include "PositionControl.hpp"
-#ifdef HAKO_EKF_IMU_ACCELERATION
 #include <motion_planning/HeadingSmoothing.hpp>
 #include <motion_planning/PositionSmoothing.hpp>
-#endif
 
 #include <algorithm>
 #include <random>
@@ -59,13 +57,8 @@ void apply_common_state(PositionControl& controller, const PositionControl3DStat
     state.position = to_px4_vector(input_state.position);
     state.velocity = to_px4_vector(input_state.velocity);
     state.acceleration = to_px4_vector(input_state.acceleration);
-#ifdef HAKO_EKF_IMU_ACCELERATION
     // MulticopterPositionControl: the filtered velocity and its filtered derivative, not Drone PRO's acceleration.
     velocity_filter.apply(state.velocity, state.acceleration, f64(dt_sec > 0.0 ? dt_sec : 0.0));
-#else
-    (void)velocity_filter;
-    (void)dt_sec;
-#endif
     state.yaw = f64(input_state.yaw_rad);
     controller.setState(state);
 }
@@ -105,7 +98,6 @@ PositionControl3DOutput make_output(
 
 }  // namespace
 
-#ifdef HAKO_EKF_IMU_ACCELERATION
 // PX4 SITL flies a position target (DO_REPOSITION) through FlightTaskAuto: PositionSmoothing turns the
 // target into a jerk-limited position/velocity/acceleration setpoint from the vehicle's position at
 // the command (navigator: previous = current position, next = current), and HeadingSmoothing limits
@@ -144,24 +136,19 @@ struct Px4PositionControl3DBackend::TrajectoryState {
     double takeoff_elapsed_sec{0.0};
     double takeoff_ramp_progress{0.0};
     bool takeoff_limits_restored{true};
-    // HAKO_ENABLE_FLIGHT_PHASE: the caller sends phases (the takeoff is no longer inferred), and the landing's
+    // flight-phase support: the caller sends phases (the takeoff is no longer inferred), and the landing's
     // shaped descent speed (down) and acceleration.
     bool phase_seen{false};
     bool landing{false};
     double land_velocity{0.0};
     double land_acceleration{0.0};
 };
-#else
-struct Px4PositionControl3DBackend::TrajectoryState {};
-#endif
 
 Px4PositionControl3DBackend::Px4PositionControl3DBackend(const Px4PositionControl3DBackendConfig& config)
     : config_(config)
     , controller_(new PositionControl())
     , velocity_filter_(new Px4VelocityStateFilter())
-#ifdef HAKO_EKF_IMU_ACCELERATION
     , trajectory_(new TrajectoryState())
-#endif
 {
     apply_config();
     reset();
@@ -178,7 +165,6 @@ void Px4PositionControl3DBackend::reset()
 {
     controller_->resetIntegral();
     velocity_filter_->reset();
-#ifdef HAKO_EKF_IMU_ACCELERATION
     trajectory_->started = false;
     trajectory_->time_sec = 0.0;
     trajectory_->last_update_sec = 0.0;
@@ -191,7 +177,6 @@ void Px4PositionControl3DBackend::reset()
     trajectory_->landing = false;
     trajectory_->land_velocity = 0.0;
     trajectory_->land_acceleration = 0.0;
-#endif
     yaw_locked_ = false;
 }
 
@@ -199,25 +184,17 @@ void Px4PositionControl3DBackend::reset()
 // target alike), so its clock advances on every call of the stage.
 void Px4PositionControl3DBackend::advance_trajectory_clock(double dt_sec)
 {
-#ifdef HAKO_EKF_IMU_ACCELERATION
     if (dt_sec > 0.0) {
         trajectory_->time_sec += dt_sec;
     }
-#else
-    (void)dt_sec;
-#endif
 }
 
 PositionControl3DOutput Px4PositionControl3DBackend::run_position(
     const PositionControl3DPositionInput& requested,
     double dt_sec)
 {
-#if defined(HAKO_EKF_IMU_ACCELERATION) && defined(HAKO_ENABLE_FLIGHT_PHASE)
     PositionControl3DPositionInput input = requested;
     apply_landing(input, dt_sec > 0.0 ? dt_sec : 0.0);
-#else
-    const PositionControl3DPositionInput& input = requested;
-#endif
     yaw_locked_ = false;  // a position target gives its own heading
     advance_trajectory_clock(dt_sec);
     apply_common_state(*controller_, input.state, *velocity_filter_, dt_sec);
@@ -241,10 +218,8 @@ PositionControl3DOutput Px4PositionControl3DBackend::run_position(
 
     apply_common_yaw_setpoint(setpoint, input.state, input.target_yaw_rad, input.target_yaw_rate_rad_sec);
     std::optional<double> output_yaw_rate = input.target_yaw_rate_rad_sec;
-#ifdef HAKO_EKF_IMU_ACCELERATION
     output_yaw_rate = apply_trajectory(input, f64(dt_sec > 0.0 ? dt_sec : 0.0), setpoint);
     apply_takeoff(setpoint, dt_sec > 0.0 ? dt_sec : 0.0);
-#endif
     controller_->setInputSetpoint(setpoint);
 
     const bool ok = controller_->update(f64(dt_sec > 0.0 ? dt_sec : 0.0));
@@ -255,7 +230,6 @@ PositionControl3DOutput Px4PositionControl3DBackend::run_position(
     return make_output(*controller_, config_.hover_thrust, output_yaw_rate);
 }
 
-#ifdef HAKO_EKF_IMU_ACCELERATION
 // takeoff_profile: MulticopterPositionControl with TakeoffHandling (mc_pos_control/Takeoff). The takeoff
 // starts armed (spool-up), is ready after COM_SPOOLUP_TIME, ramps up when the trajectory wants to climb
 // (unsmoothed upward velocity above 0.3 m/s) and flies when the ramp is complete.
@@ -321,9 +295,7 @@ void Px4PositionControl3DBackend::apply_takeoff(trajectory_setpoint_s& setpoint,
         controller_->resetIntegral();
     }
 }
-#endif
 
-#ifdef HAKO_EKF_IMU_ACCELERATION
 std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
     const PositionControl3DPositionInput& input,
     float dt_sec,
@@ -404,7 +376,6 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
     }
     bool start_takeoff = !trajectory.started && cfg.takeoff_profile && trajectory.takeoff_state < 0;
     bool phase_ends_takeoff = false;
-#ifdef HAKO_ENABLE_FLIGHT_PHASE
     if (input.flight_phase != FlightPhase::Normal) {
         trajectory.phase_seen = true;
     }
@@ -414,7 +385,6 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
         phase_ends_takeoff = input.flight_phase != FlightPhase::Takeoff;
     }
     else
-#endif
     {
         // takeoff_profile: a trajectory from rest under a target above it is a takeoff (navigator's takeoff).
         start_takeoff = start_takeoff && position(2) - target(2) > 0.5f && std::fabs(velocity(2)) < 0.2f;
@@ -530,7 +500,6 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
     return trajectory.held_yaw_rate;
 }
 
-#ifdef HAKO_ENABLE_FLIGHT_PHASE
 // landing_profile: FlightTaskAuto::_prepareLandSetpoints. The horizontal target is held and the vertical
 // axis follows a descent speed (the altitude setpoint at the vehicle's), interpolated between MPC_LAND_SPEED
 // at MPC_LAND_ALT2 and MPC_Z_V_AUTO_DN at MPC_LAND_ALT1 by the height above the takeoff point and shaped as
@@ -568,16 +537,12 @@ void Px4PositionControl3DBackend::apply_landing(PositionControl3DPositionInput& 
     // down 0.2 s later than PX4 SITL (x500 0.09 s, 2026-10-17).
     input.feedforward_acceleration = Vector3D{0.0, 0.0, tr.land_acceleration};
 }
-#endif
-#endif
 
 PositionControl3DOutput Px4PositionControl3DBackend::run_velocity(
     const PositionControl3DVelocityInput& input,
     double dt_sec)
 {
-#ifdef HAKO_EKF_IMU_ACCELERATION
     trajectory_->started = false;  // a later position target starts its trajectory from the vehicle
-#endif
     advance_trajectory_clock(dt_sec);
     apply_common_state(*controller_, input.state, *velocity_filter_, dt_sec);
 
@@ -593,7 +558,6 @@ PositionControl3DOutput Px4PositionControl3DBackend::run_velocity(
     }
 
     apply_common_yaw_setpoint(setpoint, input.state, input.target_yaw_rad, input.target_yaw_rate_rad_sec);
-#ifdef HAKO_EKF_IMU_ACCELERATION
     // PX4 StickYaw::updateYawLock: hold the heading while the yaw stick rests, free it while it turns.
     const double yaw_rate = input.target_yaw_rate_rad_sec.value_or(0.0);
     if (!config_.manual_yaw_lock || input.target_yaw_rad || std::fabs(yaw_rate) > FLT_EPSILON) {
@@ -606,7 +570,6 @@ PositionControl3DOutput Px4PositionControl3DBackend::run_velocity(
         }
         setpoint.yaw = f64(locked_yaw_rad_);
     }
-#endif
     controller_->setInputSetpoint(setpoint);
 
     const bool ok = controller_->update(f64(dt_sec > 0.0 ? dt_sec : 0.0));

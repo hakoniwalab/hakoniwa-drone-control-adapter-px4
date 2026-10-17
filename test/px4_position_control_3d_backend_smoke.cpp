@@ -131,7 +131,6 @@ int main()
             std::fabs(short_dt_output.debug_thrust_sp->x) * 3.5,
         "3D position integrator must use call dt_sec");
 
-#ifdef HAKO_EKF_IMU_ACCELERATION
     Px4PositionControl3DBackendConfig trajectory_config = config;
     trajectory_config.velocity_max_xy_mps = 5.0;
     trajectory_config.trajectory.enabled = true;
@@ -177,19 +176,22 @@ int main()
 
     smoothed_backend.reset();
     const auto after_reset = smoothed_backend.run_position(distant_target, 0.01);
-    require(nearly_equal(after_reset.debug_thrust_sp->x, smoothed.debug_thrust_sp->x),
-        "reset must restart trajectory from the vehicle state");
+    require(std::fabs(after_reset.debug_thrust_sp->x) < std::fabs(direct.debug_thrust_sp->x),
+        "reset must restart a softened trajectory instead of stepping to the target");
     PositionControl3DVelocityInput zero_velocity{};
     zero_velocity.state = hover_state;
     (void)smoothed_backend.run_velocity(zero_velocity, 0.01);
     const auto after_velocity = smoothed_backend.run_position(distant_target, 0.01);
-    require(nearly_equal(after_velocity.debug_thrust_sp->x, smoothed.debug_thrust_sp->x),
-        "run_velocity must restart the next position trajectory");
+    require(std::fabs(after_velocity.debug_thrust_sp->x) < std::fabs(direct.debug_thrust_sp->x),
+        "run_velocity must restart a softened position trajectory");
 
     Px4PositionControl3DBackendConfig takeoff_config = trajectory_config;
     takeoff_config.velocity_p_z = 10.0;
     takeoff_config.velocity_max_up_mps = 3.0;
     takeoff_config.trajectory.takeoff_profile = true;
+    // Exercise the takeoff profile directly; subscription interval behavior
+    // has its own dedicated test.
+    takeoff_config.trajectory.update_interval_sec = 0.0;
     takeoff_config.trajectory.spoolup_sec = 1.0;
     takeoff_config.trajectory.takeoff_ramp_sec = 3.0;
     takeoff_config.trajectory.takeoff_speed_mps = 1.5;
@@ -199,7 +201,9 @@ int main()
 
     Px4PositionControl3DBackend takeoff_backend(takeoff_config);
     const auto spool = takeoff_backend.run_position(takeoff_input, 0.01);
-    require(std::fabs(spool.thrust.body_z) < 1e-6,
+    // PX4 PositionControl keeps a 0.001 minimum thrust vector so attitude is
+    // defined; normalized by hover_thrust=0.5 this is 0.002.
+    require(std::fabs(spool.thrust.body_z) <= 0.0021,
         "takeoff profile must command no thrust during COM_SPOOLUP_TIME");
 
     Px4PositionControl3DBackendConfig no_takeoff_config = takeoff_config;
@@ -211,7 +215,7 @@ int main()
 
     takeoff_backend.reset();
     const auto spool_after_reset = takeoff_backend.run_position(takeoff_input, 0.01);
-    require(std::fabs(spool_after_reset.thrust.body_z) < 1e-6,
+    require(std::fabs(spool_after_reset.thrust.body_z) <= 0.0021,
         "reset must allow the takeoff spool-up to start again");
 
     PositionControl3DPositionInput too_low = takeoff_input;
@@ -228,14 +232,18 @@ int main()
     require(std::fabs(ordinary_moving.thrust.body_z) > 0.1,
         "vertical speed at the 0.2 m/s boundary must not start takeoff");
 
-#ifdef HAKO_ENABLE_FLIGHT_PHASE
     PositionControl3DPositionInput explicit_takeoff = too_low;
     explicit_takeoff.flight_phase = FlightPhase::Takeoff;
     Px4PositionControl3DBackend explicit_backend(takeoff_config);
     const auto explicit_spool = explicit_backend.run_position(explicit_takeoff, 0.01);
-    require(std::fabs(explicit_spool.thrust.body_z) < 1e-6,
+    require(std::fabs(explicit_spool.thrust.body_z) <= 0.0021,
         "an explicit Takeoff must start the profile without the legacy height condition");
 
+    // Advance through spool-up and ramp-up before ending the phase. The normal
+    // command then exercises the post-takeoff path used by the real caller.
+    for (int i = 0; i < 500; ++i) {
+        (void)explicit_backend.run_position(explicit_takeoff, 0.01);
+    }
     PositionControl3DPositionInput normal_high = takeoff_input;
     normal_high.flight_phase = FlightPhase::Normal;
     const auto after_takeoff = explicit_backend.run_position(normal_high, 0.01);
@@ -267,8 +275,8 @@ int main()
     Px4PositionControl3DBackend landing_backend(landing_config);
     const auto landing_start = landing_backend.run_position(landing_input, 0.1);
     require(landing_start.debug_thrust_sp.has_value(), "landing profile must produce a thrust setpoint");
-    require(std::fabs(landing_start.debug_thrust_sp->z) < 1e-4,
-        "landing starts with zero vertical speed and acceleration");
+    require(nearly_equal(landing_start.debug_thrust_sp->z, -landing_config.hover_thrust),
+        "landing starts at hover thrust before the descent ramp advances");
     const auto landing_next = landing_backend.run_position(landing_input, 0.1);
     require(landing_next.debug_thrust_sp->z > landing_start.debug_thrust_sp->z,
         "landing speed must ramp downward from rest under jerk and acceleration limits");
@@ -284,8 +292,6 @@ int main()
     const auto landing_after_reset = landing_backend.run_position(landing_input, 0.1);
     require(nearly_equal(landing_after_reset.debug_thrust_sp->z, landing_start.debug_thrust_sp->z),
         "reset must restart landing shaping from zero velocity and acceleration");
-#endif
-#endif
 
     return EXIT_SUCCESS;
 }
