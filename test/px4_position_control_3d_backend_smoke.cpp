@@ -185,6 +185,31 @@ int main()
     require(std::fabs(after_velocity.debug_thrust_sp->x) < std::fabs(direct.debug_thrust_sp->x),
         "run_velocity must restart a softened position trajectory");
 
+#ifdef HAKO_ENABLE_GOTO_SPEED_LIMIT
+    auto trajectory_response = [&](std::optional<double> speed_limit) {
+        Px4PositionControl3DBackend test_backend(trajectory_config);
+        PositionControl3DPositionInput test_input = distant_target;
+        test_input.horizontal_speed_limit_m_s = speed_limit;
+        PositionControl3DOutput result{};
+        for (int i = 0; i < 100; ++i) {
+            result = test_backend.run_position(test_input, 0.01);
+        }
+        require(result.debug_thrust_sp.has_value(), "goto-speed test requires thrust setpoint");
+        return result.debug_thrust_sp->x;
+    };
+    const double configured_cruise = trajectory_response(std::nullopt);
+    const double explicit_configured_cruise = trajectory_response(trajectory_config.trajectory.cruise_speed_mps);
+    const double slow_cruise = trajectory_response(1.0);
+    const double max_cruise = trajectory_response(trajectory_config.velocity_max_xy_mps);
+    const double above_max_cruise = trajectory_response(100.0);
+    require(nearly_equal(configured_cruise, explicit_configured_cruise),
+        "an absent goto speed must use MPC_XY_CRUISE");
+    require(std::fabs(slow_cruise) < std::fabs(configured_cruise),
+        "a low goto speed must slow the trajectory");
+    require(nearly_equal(max_cruise, above_max_cruise),
+        "a goto speed above MPC_XY_VEL_MAX must be capped");
+#endif
+
     Px4PositionControl3DBackendConfig takeoff_config = trajectory_config;
     takeoff_config.velocity_p_z = 10.0;
     takeoff_config.velocity_max_up_mps = 3.0;

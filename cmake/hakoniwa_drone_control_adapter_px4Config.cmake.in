@@ -1,3 +1,5 @@
 @PACKAGE_INIT@
 
+set(hakoniwa_drone_control_adapter_px4_GOTO_SPEED_LIMIT @HAKO_ENABLE_GOTO_SPEED_LIMIT@)
+
 include("${CMAKE_CURRENT_LIST_DIR}/hakoniwa_drone_control_adapter_px4Targets.cmake")

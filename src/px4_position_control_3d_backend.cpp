@@ -439,7 +439,15 @@ std::optional<double> Px4PositionControl3DBackend::apply_trajectory(
     auto& smoothing = trajectory.position;
     smoothing.setMaxAllowedHorizontalError(f64(cfg.max_horizontal_error_m));
     smoothing.setVerticalAcceptanceRadius(f64(cfg.vertical_acceptance_m));
-    smoothing.setCruiseSpeed(f64(std::fmin(cfg.cruise_speed_mps, config_.velocity_max_xy_mps)));
+    double cruise_speed_mps = cfg.cruise_speed_mps;
+#ifdef HAKO_ENABLE_GOTO_SPEED_LIMIT
+    if (input.horizontal_speed_limit_m_s
+        && std::isfinite(*input.horizontal_speed_limit_m_s)
+        && *input.horizontal_speed_limit_m_s > 0.0) {
+        cruise_speed_mps = *input.horizontal_speed_limit_m_s;
+    }
+#endif
+    smoothing.setCruiseSpeed(f64(std::fmin(cruise_speed_mps, config_.velocity_max_xy_mps)));
     smoothing.setHorizontalTrajectoryGain(f64(cfg.trajectory_gain_xy));
     smoothing.setTargetAcceptanceRadius(f64(cfg.target_acceptance_m));
     smoothing.setMaxAccelerationXY(f64(cfg.acceleration_xy_mps2));

@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.16)
 
 project(hakoniwa_drone_control_adapter_px4 LANGUAGES CXX)
 
+option(HAKO_ENABLE_GOTO_SPEED_LIMIT
+    "Enable per-command goto horizontal speed limits" OFF)
+
 # Default to an optimized build. Without a build type the PX4 EKF and
 # controllers were compiled without optimization, which slowed every
 # Drone PRO simulation that links this library.
@@ -134,6 +137,10 @@ target_compile_definitions(hakoniwa_drone_control_adapter_px4
         CONFIG_EKF2_BAROMETER=1
         CONFIG_EKF2_MAGNETOMETER=1
 )
+if(HAKO_ENABLE_GOTO_SPEED_LIMIT)
+    target_compile_definitions(hakoniwa_drone_control_adapter_px4
+        PUBLIC HAKO_ENABLE_GOTO_SPEED_LIMIT)
+endif()
 
 # PX4's Auto trajectory (FlightTaskAuto's PositionSmoothing and HeadingSmoothing) in the 3D
 # position stage, as PX4 SITL flies a reposition (px4_position_control_3d_backend.cpp).
