@@ -211,6 +211,18 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
         sensor_parameter("SENS_GPS0_OFFX", 0.0),
         sensor_parameter("SENS_GPS0_OFFY", 0.0),
         sensor_parameter("SENS_GPS0_OFFZ", 0.0)};
+    sensor_model.mag_offset_gauss = {
+        sensor_parameter("CAL_MAG0_XOFF", 0.0),
+        sensor_parameter("CAL_MAG0_YOFF", 0.0),
+        sensor_parameter("CAL_MAG0_ZOFF", 0.0)};
+    sensor_model.mag_scale = {
+        sensor_parameter("CAL_MAG0_XSCALE", 1.0),
+        sensor_parameter("CAL_MAG0_YSCALE", 1.0),
+        sensor_parameter("CAL_MAG0_ZSCALE", 1.0)};
+    sensor_model.mag_offdiagonal = {
+        sensor_parameter("CAL_MAG0_XODIAG", 0.0),
+        sensor_parameter("CAL_MAG0_YODIAG", 0.0),
+        sensor_parameter("CAL_MAG0_ZODIAG", 0.0)};
     config.rate_control.sensor_model_v2 = sensor_model;
 #endif
     // The rate stage on the previous cycle's rates setpoint, optional (off); standard PX4 behavior build only.

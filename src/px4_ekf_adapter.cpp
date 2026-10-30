@@ -270,7 +270,7 @@ void Px4EkfAdapter::push_mag(const EkfMagInput& input)
     estimator::magSample mag{};
     mag.time_us = input.time_usec;
 #ifdef HAKO_ENABLE_SENSOR_MODEL_V2
-    const auto body = rotate_sensor_to_body(sensor_model_v2_,
+    const auto body = correct_mag_sensor_to_body(sensor_model_v2_,
         {input.xmag_gauss, input.ymag_gauss, input.zmag_gauss});
     mag.mag = matrix::Vector3f(body[0], body[1], body[2]);
 #else

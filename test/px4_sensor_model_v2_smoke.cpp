@@ -115,6 +115,9 @@ int main()
         R"("SENS_BOARD_ROT":2,"SENS_BOARD_X_OFF":1,"SENS_BOARD_Y_OFF":2,"SENS_BOARD_Z_OFF":3,)"
         R"("EKF2_IMU_POS_X":0.1,"EKF2_IMU_POS_Y":0.2,"EKF2_IMU_POS_Z":0.3,)"
         R"("SENS_GPS0_OFFX":0.4,"SENS_GPS0_OFFY":0.5,"SENS_GPS0_OFFZ":0.6,)"
+        R"("CAL_MAG0_XOFF":0.1,"CAL_MAG0_YOFF":-0.2,"CAL_MAG0_ZOFF":0.3,)"
+        R"("CAL_MAG0_XSCALE":2,"CAL_MAG0_YSCALE":3,"CAL_MAG0_ZSCALE":4,)"
+        R"("CAL_MAG0_XODIAG":0.5,"CAL_MAG0_YODIAG":-0.25,"CAL_MAG0_ZODIAG":0.75,)"
     );
     const Px4ControllerConfig loaded = Px4ControllerConfigLoader{}.load_from_text(config_text);
     require(loaded.sensor_model_v2.board_rotation == 2, "SENS_BOARD_ROT was not loaded");
@@ -143,5 +146,20 @@ int main()
         {0.1, 0.2, 0.3}, "EKF imu_pos_body was not configured");
     require_vector(adapter.sensor_model_v2_.gps_position_body_m,
         {0.4, 0.5, 0.6}, "EKF gps_pos_body was not configured");
+
+    // [SEN-MAG-340] Missing calibration is the identity correction.
+    require_vector(correct_mag_sensor_to_body(defaults, body), body,
+        "missing magnetometer calibration changed the value");
+    Px4SensorModelV2Config hard_iron{};
+    hard_iron.mag_offset_gauss = {0.1, -0.2, 0.3};
+    // [SEN-MAG-350] Hard-iron offsets are subtracted before scaling.
+    require_vector(correct_mag_sensor_to_body(hard_iron, {1.1, 1.8, 3.3}),
+        {1.0, 2.0, 3.0}, "hard-iron correction did not recover the value");
+    Px4SensorModelV2Config soft_iron{};
+    soft_iron.mag_scale = {2.0, 3.0, 4.0};
+    soft_iron.mag_offdiagonal = {0.5, -0.25, 0.75};
+    // [SEN-MAG-340] [SEN-MAG-360] The symmetric scale matrix uses X/Y/Z ODIAG as xy/xz/yz.
+    require_vector(correct_mag_sensor_to_body(soft_iron, {1.0, 2.0, 3.0}),
+        {2.25, 8.75, 13.25}, "soft-iron matrix was not applied correctly");
     return EXIT_SUCCESS;
 }
