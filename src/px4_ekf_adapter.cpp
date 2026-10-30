@@ -75,6 +75,7 @@ void Px4EkfAdapter::set_sensor_data_types(const Px4SensorDataTypes& types)
 #ifdef HAKO_ENABLE_SENSOR_MODEL_V2
 void Px4EkfAdapter::set_sensor_model_v2_config(const Px4SensorModelV2Config& config)
 {
+    // [SEN-COM-340] Pass IMU and GPS mount offsets into the PX4 EKF path.
     sensor_model_v2_ = config;
     if (ekf_) {
         const matrix::Vector3f imu_position(
@@ -149,6 +150,7 @@ void Px4EkfAdapter::apply_sensor_policy()
 
     const auto& px4 = config_.px4_params;
 #ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    // [SEN-COM-340] Rotate IMU measurements back to body axes before EKF input.
     set_sensor_model_v2_config(sensor_model_v2_);
 #endif
     if (px4.ekf2_gps_ctrl) {
@@ -226,6 +228,7 @@ void Px4EkfAdapter::push_imu(const EkfImuInput& exact_input, double dt_sec)
 {
     EkfImuInput input = px4_imu_input(exact_input, sensor_data_types_.imu);
 #ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    // [SEN-COM-340] Rotate magnetic measurements back to body axes before EKF input.
     const auto gyro = rotate_sensor_to_body(sensor_model_v2_,
         {input.xgyro_rad_s, input.ygyro_rad_s, input.zgyro_rad_s});
     const auto accel = rotate_sensor_to_body(sensor_model_v2_,

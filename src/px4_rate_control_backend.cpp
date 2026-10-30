@@ -77,6 +77,7 @@ BodyTorqueCommand Px4RateControlBackend::run(const RateControlInput& input)
         ? to_vector3f(px4_imu_fifo_gyro(input.rate.p), px4_imu_fifo_gyro(input.rate.q), px4_imu_fifo_gyro(input.rate.r))
         : to_vector3f(input.rate.p, input.rate.q, input.rate.r);
 #ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    // [SEN-COM-340] Rotate v2 angular velocity back to body axes before rate control.
     const auto body_rate = rotate_sensor_to_body(config_.sensor_model_v2, {rate(0), rate(1), rate(2)});
     rate = to_vector3f(body_rate[0], body_rate[1], body_rate[2]);
 #endif

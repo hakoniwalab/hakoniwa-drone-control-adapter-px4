@@ -7,6 +7,7 @@
 #include <stdexcept>
 
 #ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    // [SEN-COM-340] Load PX4 board rotation and IMU/GPS offsets for v2 compensation.
 #include <conversion/rotation.h>
 #endif
 
