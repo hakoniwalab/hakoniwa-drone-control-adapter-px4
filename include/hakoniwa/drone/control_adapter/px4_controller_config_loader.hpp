@@ -9,6 +9,7 @@
 #include "hakoniwa/drone/control_adapter/px4_position_control_3d_backend.hpp"
 #include "hakoniwa/drone/control_adapter/px4_rate_control_backend.hpp"
 #include "hakoniwa/drone/control_adapter/px4_sensor_data_type.hpp"
+#include "hakoniwa/drone/control_adapter/px4_sensor_model_v2.hpp"
 
 namespace hakoniwa::drone::control_adapter {
 
@@ -29,6 +30,9 @@ struct Px4ControllerConfig {
     Px4PositionControl3DBackendConfig position_control{};
     Px4RateControlBackendConfig rate_control{};
     Px4SensorDataTypes sensor_data_types{};
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    Px4SensorModelV2Config sensor_model_v2{};
+#endif
 };
 
 class Px4ControllerConfigLoader {

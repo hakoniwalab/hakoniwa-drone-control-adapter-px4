@@ -45,6 +45,9 @@ void Px4EkfAdapter::reset()
     delete ekf_;
     ekf_ = new ::Ekf();
     apply_px4_parameter_defaults(*ekf_->getParamHandle());
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    set_sensor_model_v2_config(sensor_model_v2_);
+#endif
     initialized_ = false;
     last_input_time_usec_ = 0;
 }
@@ -68,6 +71,21 @@ void Px4EkfAdapter::set_sensor_data_types(const Px4SensorDataTypes& types)
     validate_px4_sensor_data_types(types);
     sensor_data_types_ = types;
 }
+
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+void Px4EkfAdapter::set_sensor_model_v2_config(const Px4SensorModelV2Config& config)
+{
+    sensor_model_v2_ = config;
+    if (ekf_) {
+        const matrix::Vector3f imu_position(
+            static_cast<float>(config.imu_position_body_m[0]),
+            static_cast<float>(config.imu_position_body_m[1]),
+            static_cast<float>(config.imu_position_body_m[2]));
+        ekf_->getParamHandle()->imu_pos_body = imu_position;
+        ekf_->output_predictor().set_imu_offset(imu_position);
+    }
+}
+#endif
 
 void Px4EkfAdapter::set_armed_status(bool armed)
 {
@@ -130,6 +148,9 @@ void Px4EkfAdapter::apply_sensor_policy()
     params->ekf2_decl_type = static_cast<int32_t>(GeoDeclinationMask::SAVE_GEO_DECL);
 
     const auto& px4 = config_.px4_params;
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    set_sensor_model_v2_config(sensor_model_v2_);
+#endif
     if (px4.ekf2_gps_ctrl) {
         params->ekf2_gps_ctrl = *px4.ekf2_gps_ctrl;
     }
@@ -203,7 +224,19 @@ void Px4EkfAdapter::apply_sensor_policy()
 
 void Px4EkfAdapter::push_imu(const EkfImuInput& exact_input, double dt_sec)
 {
-    const EkfImuInput input = px4_imu_input(exact_input, sensor_data_types_.imu);
+    EkfImuInput input = px4_imu_input(exact_input, sensor_data_types_.imu);
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    const auto gyro = rotate_sensor_to_body(sensor_model_v2_,
+        {input.xgyro_rad_s, input.ygyro_rad_s, input.zgyro_rad_s});
+    const auto accel = rotate_sensor_to_body(sensor_model_v2_,
+        {input.xacc_mps2, input.yacc_mps2, input.zacc_mps2});
+    input.xgyro_rad_s = gyro[0];
+    input.ygyro_rad_s = gyro[1];
+    input.zgyro_rad_s = gyro[2];
+    input.xacc_mps2 = accel[0];
+    input.yacc_mps2 = accel[1];
+    input.zacc_mps2 = accel[2];
+#endif
     if (!std::isfinite(dt_sec) || dt_sec <= 0.0 || dt_sec > 1.0) {
         return;
     }
@@ -233,10 +266,16 @@ void Px4EkfAdapter::push_mag(const EkfMagInput& input)
 
     estimator::magSample mag{};
     mag.time_us = input.time_usec;
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    const auto body = rotate_sensor_to_body(sensor_model_v2_,
+        {input.xmag_gauss, input.ymag_gauss, input.zmag_gauss});
+    mag.mag = matrix::Vector3f(body[0], body[1], body[2]);
+#else
     mag.mag = matrix::Vector3f(
         static_cast<float>(input.xmag_gauss),
         static_cast<float>(input.ymag_gauss),
         static_cast<float>(input.zmag_gauss));
+#endif
     ekf_->setMagData(mag);
 }
 
@@ -278,7 +317,14 @@ void Px4EkfAdapter::push_gps(const EkfHilGpsInput& exact_input)
     gps.yaw_offset = 0.0f;
     gps.spoofed = false;
     gps.jammed = false;
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    gps.pos_body = matrix::Vector3f(
+        static_cast<float>(sensor_model_v2_.gps_position_body_m[0]),
+        static_cast<float>(sensor_model_v2_.gps_position_body_m[1]),
+        static_cast<float>(sensor_model_v2_.gps_position_body_m[2]));
+#else
     gps.pos_body = matrix::Vector3f(0.f, 0.f, 0.f);
+#endif
     ekf_->setGpsData(gps);
 }
 

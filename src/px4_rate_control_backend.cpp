@@ -76,8 +76,17 @@ BodyTorqueCommand Px4RateControlBackend::run(const RateControlInput& input)
     matrix::Vector3f rate = (config_.imu_data_type == sensor_data_type::kImuFifoInt16)
         ? to_vector3f(px4_imu_fifo_gyro(input.rate.p), px4_imu_fifo_gyro(input.rate.q), px4_imu_fifo_gyro(input.rate.r))
         : to_vector3f(input.rate.p, input.rate.q, input.rate.r);
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    const auto body_rate = rotate_sensor_to_body(config_.sensor_model_v2, {rate(0), rate(1), rate(2)});
+    rate = to_vector3f(body_rate[0], body_rate[1], body_rate[2]);
+#endif
     matrix::Vector3f angular_accel =
         to_vector3f(input.angular_accel.p_dot, input.angular_accel.q_dot, input.angular_accel.r_dot);
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    const auto body_accel = rotate_sensor_to_body(config_.sensor_model_v2,
+        {angular_accel(0), angular_accel(1), angular_accel(2)});
+    angular_accel = to_vector3f(body_accel[0], body_accel[1], body_accel[2]);
+#endif
     if (is_valid_dt(input.dt_sec)) {
         ImuFilters& filters = *imu_filters_;
         const float sample_rate_hz = static_cast<float>(1.0 / input.dt_sec);

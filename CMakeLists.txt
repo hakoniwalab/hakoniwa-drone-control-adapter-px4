@@ -4,6 +4,8 @@ project(hakoniwa_drone_control_adapter_px4 LANGUAGES CXX)
 
 option(HAKO_ENABLE_GOTO_SPEED_LIMIT
     "Enable per-command goto horizontal speed limits" OFF)
+option(HAKO_ENABLE_SENSOR_MODEL_V2
+    "Enable PX4 sensor mounting rotation and position parameters" OFF)
 
 # Default to an optimized build. Without a build type the PX4 EKF and
 # controllers were compiled without optimization, which slowed every
@@ -38,6 +40,7 @@ add_library(hakoniwa_drone_control_adapter_px4 STATIC
     src/px4_horizontal_position_control_backend.cpp
     src/px4_position_control_3d_backend.cpp
     src/px4_rate_control_backend.cpp
+    src/px4_sensor_model_v2.cpp
     ${PX4_ROOT}/src/lib/geo/geo.cpp
     ${PX4_ROOT}/src/lib/lat_lon_alt/lat_lon_alt.cpp
     ${PX4_ROOT}/src/lib/world_magnetic_model/geo_mag_declination.cpp
@@ -90,6 +93,13 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
         PROPERTIES
             COMPILE_OPTIONS "-include;math.h"
     )
+endif()
+if(HAKO_ENABLE_SENSOR_MODEL_V2)
+    target_compile_definitions(hakoniwa_drone_control_adapter_px4
+        PUBLIC HAKO_ENABLE_SENSOR_MODEL_V2
+        PRIVATE __EXPORT=)
+    target_sources(hakoniwa_drone_control_adapter_px4 PRIVATE
+        ${PX4_ROOT}/src/lib/conversion/rotation.cpp)
 endif()
 
 set_target_properties(hakoniwa_drone_control_adapter_px4 PROPERTIES
@@ -547,3 +557,24 @@ target_compile_definitions(${ekf_default_test} PRIVATE
 )
 target_link_libraries(${ekf_default_test} PRIVATE hakoniwa_drone_control_adapter_px4)
 add_test(NAME ${ekf_default_test} COMMAND ${ekf_default_test})
+
+if(HAKO_ENABLE_SENSOR_MODEL_V2)
+    add_executable(px4_sensor_model_v2_smoke
+        test/px4_sensor_model_v2_smoke.cpp)
+    target_include_directories(px4_sensor_model_v2_smoke PRIVATE
+        ${PX4_ROOT}/src
+        ${PX4_ROOT}/src/lib
+        ${PX4_ROOT}/src/lib/matrix
+        ${PX4_ROOT}/src/modules/ekf2
+        ${PX4_ROOT}/src/modules/ekf2/EKF
+        ${PX4_ROOT}/src/modules/ekf2/EKF/python)
+    target_compile_definitions(px4_sensor_model_v2_smoke PRIVATE
+        CONFIG_EKF2_GNSS=1
+        CONFIG_EKF2_BAROMETER=1
+        CONFIG_EKF2_MAGNETOMETER=1)
+    target_link_libraries(px4_sensor_model_v2_smoke PRIVATE
+        hakoniwa_drone_control_adapter_px4)
+    add_test(NAME px4_sensor_model_v2_smoke COMMAND px4_sensor_model_v2_smoke)
+    set_tests_properties(px4_sensor_model_v2_smoke PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test)
+endif()
