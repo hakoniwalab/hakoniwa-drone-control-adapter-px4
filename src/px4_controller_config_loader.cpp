@@ -1,9 +1,15 @@
 #include "hakoniwa/drone/control_adapter/px4_controller_config_loader.hpp"
 
+#include <cmath>
 #include <fstream>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
+
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    // [SEN-COM-340] Load PX4 board rotation and IMU/GPS offsets for v2 compensation.
+#include <conversion/rotation.h>
+#endif
 
 namespace hakoniwa::drone::control_adapter {
 
@@ -182,6 +188,43 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
     }
     config.sensor_data_types = extract_sensor_data_types(text);
     config.rate_control.imu_data_type = config.sensor_data_types.imu;
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    const auto sensor_parameter = [&text](const char* key, double default_value) {
+        return has_key(text, key) ? extract_number(text, key) : default_value;
+    };
+    auto& sensor_model = config.sensor_model_v2;
+    const double board_rotation = sensor_parameter("SENS_BOARD_ROT", 0.0);
+    if (board_rotation < 0.0
+        || board_rotation >= ROTATION_MAX
+        || std::trunc(board_rotation) != board_rotation) {
+        throw std::runtime_error("SENS_BOARD_ROT must be an integer in [0, ROTATION_MAX)");
+    }
+    sensor_model.board_rotation = static_cast<int>(board_rotation);
+    sensor_model.board_x_offset_deg = sensor_parameter("SENS_BOARD_X_OFF", 0.0);
+    sensor_model.board_y_offset_deg = sensor_parameter("SENS_BOARD_Y_OFF", 0.0);
+    sensor_model.board_z_offset_deg = sensor_parameter("SENS_BOARD_Z_OFF", 0.0);
+    sensor_model.imu_position_body_m = {
+        sensor_parameter("EKF2_IMU_POS_X", 0.0),
+        sensor_parameter("EKF2_IMU_POS_Y", 0.0),
+        sensor_parameter("EKF2_IMU_POS_Z", 0.0)};
+    sensor_model.gps_position_body_m = {
+        sensor_parameter("SENS_GPS0_OFFX", 0.0),
+        sensor_parameter("SENS_GPS0_OFFY", 0.0),
+        sensor_parameter("SENS_GPS0_OFFZ", 0.0)};
+    sensor_model.mag_offset_gauss = {
+        sensor_parameter("CAL_MAG0_XOFF", 0.0),
+        sensor_parameter("CAL_MAG0_YOFF", 0.0),
+        sensor_parameter("CAL_MAG0_ZOFF", 0.0)};
+    sensor_model.mag_scale = {
+        sensor_parameter("CAL_MAG0_XSCALE", 1.0),
+        sensor_parameter("CAL_MAG0_YSCALE", 1.0),
+        sensor_parameter("CAL_MAG0_ZSCALE", 1.0)};
+    sensor_model.mag_offdiagonal = {
+        sensor_parameter("CAL_MAG0_XODIAG", 0.0),
+        sensor_parameter("CAL_MAG0_YODIAG", 0.0),
+        sensor_parameter("CAL_MAG0_ZODIAG", 0.0)};
+    config.rate_control.sensor_model_v2 = sensor_model;
+#endif
     // The rate stage on the previous cycle's rates setpoint, optional (off); standard PX4 behavior build only.
     config.rate_control.previous_rates_setpoint = has_key(text, "previous_rates_setpoint")
         && extract_number(text, "previous_rates_setpoint") != 0.0;

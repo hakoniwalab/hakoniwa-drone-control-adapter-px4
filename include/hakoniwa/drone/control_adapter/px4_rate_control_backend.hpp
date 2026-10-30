@@ -3,6 +3,7 @@
 #include <string>
 
 #include "hakoniwa/drone/control_adapter/rate_control_backend.hpp"
+#include "hakoniwa/drone/control_adapter/px4_sensor_model_v2.hpp"
 
 class RateControl;
 
@@ -60,6 +61,9 @@ struct Px4RateControlBackendConfig {
     // ekf2's vehicle_attitude): one IMU period (4 ms at 250 Hz) between the stages. Off: the same
     // cycle's setpoint, as before. standard PX4 behavior build only.
     bool previous_rates_setpoint{false};
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    Px4SensorModelV2Config sensor_model_v2{};
+#endif
 };
 
 struct Px4RateControlBackendStatus {

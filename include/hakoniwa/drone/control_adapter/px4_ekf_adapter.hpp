@@ -2,6 +2,7 @@
 
 #include "hakoniwa/drone/control_adapter/ekf_adapter.hpp"
 #include "hakoniwa/drone/control_adapter/px4_sensor_data_type.hpp"
+#include "hakoniwa/drone/control_adapter/px4_sensor_model_v2.hpp"
 
 class Ekf;
 
@@ -35,6 +36,9 @@ public:
     // The sensor data types of the PX4 controller config (px4_sensor_data_type.hpp): the IMU and GPS
     // as PX4 SITL receives them. Not called: exact, as before.
     void set_sensor_data_types(const Px4SensorDataTypes& types);
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    void set_sensor_model_v2_config(const Px4SensorModelV2Config& config);
+#endif
 
 private:
     void ensure_initialized(std::uint64_t time_usec);
@@ -47,6 +51,9 @@ private:
     double gps_delay_ms_{0.0};
     double baro_delay_ms_{0.0};
     Px4SensorDataTypes sensor_data_types_{};
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    Px4SensorModelV2Config sensor_model_v2_{};
+#endif
 };
 
 }  // namespace hakoniwa::drone::control_adapter
