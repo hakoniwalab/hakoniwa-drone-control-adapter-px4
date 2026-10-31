@@ -11,6 +11,7 @@
 #include "hakoniwa/drone/control_adapter/px4_ekf_adapter.hpp"
 #undef private
 #include "hakoniwa/drone/control_adapter/px4_controller_config_loader.hpp"
+#include "hakoniwa/drone/control_adapter/px4_rate_control_backend.hpp"
 
 using namespace hakoniwa::drone::control_adapter;
 
@@ -138,6 +139,54 @@ int main()
     require_invalid_board_rotation("-1");
     require_invalid_board_rotation("41");
     require_invalid_board_rotation("1.5");
+
+    // Handoff: the exact set Drone PRO's generate_px4_sensor_mount_config.py writes into common.parameters for a
+    // sample mount (IMU 10/0/30 deg at 0.1/-0.05/0.02 m, GPS at -0.1/0/-0.2 m, COM 0.01/0/0.03 m, hard and soft iron).
+    std::string generated_text = text.str();
+    const std::string common_parameters = "\"common\": {\n    \"parameters\": {";
+    require(generated_text.find(common_parameters) != std::string::npos, "sample has no common.parameters");
+    generated_text.insert(generated_text.find(common_parameters) + common_parameters.size(),
+        R"("SENS_BOARD_ROT": 1, "SENS_BOARD_X_OFF": 7.107076110446535, "SENS_BOARD_Y_OFF": 7.053022130283184,)"
+        R"("SENS_BOARD_Z_OFF": -14.561451413257695, "EKF2_IMU_POS_X": 0.09000000000000001, "EKF2_IMU_POS_Y": -0.05,)"
+        R"("EKF2_IMU_POS_Z": -0.009999999999999998, "SENS_GPS0_OFFX": -0.11, "SENS_GPS0_OFFY": 0.0,)"
+        R"("SENS_GPS0_OFFZ": -0.23, "CAL_MAG0_XOFF": 0.03, "CAL_MAG0_YOFF": -0.015, "CAL_MAG0_ZOFF": 0.008,)"
+        R"("CAL_MAG0_XSCALE": 0.8, "CAL_MAG0_YSCALE": 1.25, "CAL_MAG0_ZSCALE": 2.0, "CAL_MAG0_XODIAG": 0.0,)"
+        R"("CAL_MAG0_YODIAG": 0.0, "CAL_MAG0_ZODIAG": 0.0,)");
+    const auto generated = Px4ControllerConfigLoader{}.load_from_text(generated_text).sensor_model_v2;
+    require(generated.board_rotation == 1, "generated SENS_BOARD_ROT was not loaded");
+    require_vector({generated.board_x_offset_deg, generated.board_y_offset_deg, generated.board_z_offset_deg},
+        {7.107076110446535, 7.053022130283184, -14.561451413257695}, "generated SENS_BOARD_*_OFF was not loaded");
+    require_vector(generated.imu_position_body_m, {0.09, -0.05, -0.01}, "generated EKF2_IMU_POS was not loaded");
+    require_vector(generated.gps_position_body_m, {-0.11, 0.0, -0.23}, "generated SENS_GPS0_OFF was not loaded");
+    require_vector(generated.mag_offset_gauss, {0.03, -0.015, 0.008}, "generated CAL_MAG0_*OFF was not loaded");
+    require_vector(generated.mag_scale, {0.8, 1.25, 2.0}, "generated CAL_MAG0_*SCALE was not loaded");
+    require_vector(generated.mag_offdiagonal, {0.0, 0.0, 0.0}, "generated CAL_MAG0_*ODIAG was not loaded");
+    // The generated rotation brings a sensor-axis value back to the body axes (R = Rz(30) Rx(10)).
+    require_vector(rotate_sensor_to_body(generated, transpose_apply(rotation(10.0, 0.0, 30.0), body)), body,
+        "generated rotation did not recover the mount");
+
+    // [SEN-COM-340] The rate stage turns the sensor-axis gyro to the body axes: ROTATION_YAW_90 reads body p as -q.
+    std::string yaw90_text = text.str();
+    yaw90_text.insert(yaw90_text.find('{') + 1, R"("SENS_BOARD_ROT":2,)");
+    Px4RateControlBackend plain_rate(Px4ControllerConfigLoader{}.load_from_text(text.str()).rate_control);
+    Px4RateControlBackend rotated_rate(Px4ControllerConfigLoader{}.load_from_text(yaw90_text).rate_control);
+    RateControlInput body_input{};
+    body_input.dt_sec = 0.001;
+    RateControlInput sensor_input = body_input;
+    double difference = 0.0;
+    double magnitude = 0.0;
+    for (int step = 0; step < 50; ++step) {
+        const double rate = 0.5 * std::sin(0.1 * step);
+        body_input.rate.p = rate;
+        sensor_input.rate.q = -rate;
+        const BodyTorqueCommand expected = plain_rate.run(body_input);
+        const BodyTorqueCommand actual = rotated_rate.run(sensor_input);
+        difference += std::fabs(expected.x - actual.x) + std::fabs(expected.y - actual.y)
+            + std::fabs(expected.z - actual.z);
+        magnitude += std::fabs(expected.x);
+    }
+    require(magnitude > 0.0, "rate control produced no roll torque");
+    require(difference <= 1e-6 * magnitude, "rate control did not use SENS_BOARD_ROT");
 
     Px4EkfAdapter adapter;
     adapter.set_sensor_model_v2_config(loaded.sensor_model_v2);
