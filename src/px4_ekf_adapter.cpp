@@ -238,7 +238,8 @@ void Px4EkfAdapter::push_imu(const EkfImuInput& exact_input, double dt_sec)
     // [SEN-COM-340] Rotate magnetic measurements back to body axes before EKF input.
     const auto gyro = rotate_sensor_to_body(sensor_model_v2_,
         {input.xgyro_rad_s, input.ygyro_rad_s, input.zgyro_rad_s});
-    const auto accel = rotate_sensor_to_body(sensor_model_v2_,
+    // [SEN-ACC-300] The accelerometer as PX4 corrects it: CAL_ACC0_* (0 and 1 unless written), then the rotation.
+    const auto accel = correct_accel_sensor_to_body(sensor_model_v2_,
         {input.xacc_mps2, input.yacc_mps2, input.zacc_mps2});
     input.xgyro_rad_s = gyro[0];
     input.ygyro_rad_s = gyro[1];
