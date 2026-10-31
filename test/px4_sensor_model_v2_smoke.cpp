@@ -198,6 +198,51 @@ int main()
     require(magnitude > 0.0, "rate control produced no roll torque");
     require(difference <= 1e-6 * magnitude, "rate control did not use SENS_BOARD_ROT");
 
+    // [SEN-BAR-325] SENS_BARO_QNH and SENS_BARO_RATE are loaded within PX4's ranges.
+    std::string baro_text = text.str();
+    baro_text.insert(baro_text.find('{') + 1, R"("SENS_BARO_QNH":1000,"SENS_BARO_RATE":10,)");
+    const auto baro_loaded = Px4ControllerConfigLoader{}.load_from_text(baro_text).sensor_model_v2;
+    require(baro_loaded.baro_qnh_hpa == 1000.0 && baro_loaded.baro_rate_hz == 10.0, "baro QNH/rate were not loaded");
+    for (const char* invalid : {R"("SENS_BARO_QNH":400,)", R"("SENS_BARO_RATE":0,)"}) {
+        std::string invalid_text = text.str();
+        invalid_text.insert(invalid_text.find('{') + 1, invalid);
+        bool rejected = false;
+        try {
+            static_cast<void>(Px4ControllerConfigLoader{}.load_from_text(invalid_text));
+        } catch (const std::runtime_error&) {
+            rejected = true;
+        }
+        require(rejected, "an out-of-range baro setting was accepted");
+    }
+    // [SEN-BAR-325] VehicleAirData's averaging: the first sample is published, then samples gather until their mean
+    // time is one SENS_BARO_RATE interval (50 ms at 20 Hz) after the last publication.
+    {
+        Px4EkfAdapter baro_adapter;
+        Px4SensorModelV2Config twenty_hz{};
+        baro_adapter.set_sensor_model_v2_config(twenty_hz);
+        const auto push = [&baro_adapter](std::uint64_t time_usec, double pressure_pa) {
+            EkfBaroInput baro{};
+            baro.time_usec = time_usec;
+            baro.pressure_pa = pressure_pa;
+            baro_adapter.push_baro(baro);
+        };
+        push(10000, 101325.0);
+        require(baro_adapter.baro_last_publication_usec_ == 10000 && baro_adapter.baro_sample_count_ == 0,
+            "the first barometer sample was not published");
+        for (std::uint64_t t = 20000; t <= 100000; t += 10000) {
+            push(t, 101300.0 + static_cast<double>(t) / 1000.0);
+        }
+        // Samples 20..100 ms: the mean time reaches 60 ms (= 10 + 50) with the 100 ms sample, so all nine are
+        // published together and the accumulator is empty.
+        require(baro_adapter.baro_last_publication_usec_ == 60000 && baro_adapter.baro_sample_count_ == 0,
+            "the samples were not averaged over one SENS_BARO_RATE interval");
+        push(105000, 101320.0);  // mean 105 ms < 60 + 50 ms: kept
+        require(baro_adapter.baro_sample_count_ == 1, "a sample before the next interval was published");
+        push(115000, 101321.0);  // mean 110 ms = 60 + 50 ms: published with the 105 ms sample
+        require(baro_adapter.baro_last_publication_usec_ == 110000 && baro_adapter.baro_sample_count_ == 0,
+            "the next interval was not published");
+    }
+
     Px4EkfAdapter adapter;
     adapter.set_sensor_model_v2_config(loaded.sensor_model_v2);
     const auto& params = *adapter.ekf_->getParamHandle();

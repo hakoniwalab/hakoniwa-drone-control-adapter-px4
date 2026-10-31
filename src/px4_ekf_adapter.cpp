@@ -2,6 +2,9 @@
 
 #include "EKF/common.h"
 #include "EKF/ekf.h"
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+#include <lib/atmosphere/atmosphere.h>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -47,6 +50,10 @@ void Px4EkfAdapter::reset()
     apply_px4_parameter_defaults(*ekf_->getParamHandle());
 #ifdef HAKO_ENABLE_SENSOR_MODEL_V2
     set_sensor_model_v2_config(sensor_model_v2_);
+    baro_pressure_sum_pa_ = 0.0;
+    baro_time_sum_usec_ = 0;
+    baro_sample_count_ = 0;
+    baro_last_publication_usec_ = 0;
 #endif
     initialized_ = false;
     last_input_time_usec_ = 0;
@@ -287,10 +294,34 @@ void Px4EkfAdapter::push_baro(const EkfBaroInput& input)
     ensure_initialized(input.time_usec);
     last_input_time_usec_ = input.time_usec;
 
+#ifdef HAKO_ENABLE_SENSOR_MODEL_V2
+    // [SEN-BAR-325] As PX4 SITL's sensors module (VehicleAirData): average the pressure samples, publish at
+    // SENS_BARO_RATE with the mean sample time, and turn the mean pressure into a height against SENS_BARO_QNH
+    // with PX4's atmosphere library. The temperature only feeds the air density there, which EKF2 does not use.
+    baro_pressure_sum_pa_ += input.pressure_pa;
+    baro_time_sum_usec_ += input.time_usec;
+    ++baro_sample_count_;
+    const auto interval_usec = static_cast<std::uint64_t>(1e6 / sensor_model_v2_.baro_rate_hz);
+    const std::uint64_t mean_time_usec = baro_time_sum_usec_ / baro_sample_count_;
+    if (mean_time_usec < baro_last_publication_usec_ + interval_usec && baro_last_publication_usec_ != 0) {
+        return;
+    }
+    const float mean_pressure_pa = static_cast<float>(baro_pressure_sum_pa_ / baro_sample_count_);
+    estimator::baroSample baro{};
+    baro.time_us = mean_time_usec;
+    baro.hgt = atmosphere::getAltitudeFromPressure(mean_pressure_pa,
+        static_cast<float>(sensor_model_v2_.baro_qnh_hpa * 100.0));
+    ekf_->setBaroData(baro);
+    baro_last_publication_usec_ = mean_time_usec;
+    baro_pressure_sum_pa_ = 0.0;
+    baro_time_sum_usec_ = 0;
+    baro_sample_count_ = 0;
+#else
     estimator::baroSample baro{};
     baro.time_us = input.time_usec;
     baro.hgt = static_cast<float>(input.pressure_alt_m);
     ekf_->setBaroData(baro);
+#endif
 }
 
 void Px4EkfAdapter::push_gps(const EkfHilGpsInput& exact_input)
