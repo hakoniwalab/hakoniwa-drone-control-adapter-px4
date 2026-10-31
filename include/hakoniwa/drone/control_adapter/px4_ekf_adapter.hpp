@@ -53,6 +53,11 @@ private:
     Px4SensorDataTypes sensor_data_types_{};
 #ifdef HAKO_ENABLE_SENSOR_MODEL_V2
     Px4SensorModelV2Config sensor_model_v2_{};
+    // Barometer samples averaged until the next SENS_BARO_RATE publication (PX4 VehicleAirData).
+    double baro_pressure_sum_pa_{0.0};
+    std::uint64_t baro_time_sum_usec_{0};
+    std::uint32_t baro_sample_count_{0};
+    std::uint64_t baro_last_publication_usec_{0};
 #endif
 };
 

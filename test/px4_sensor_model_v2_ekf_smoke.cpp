@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <vector>
 
 #include "hakoniwa/drone/control_adapter/px4_ekf_adapter.hpp"
 
@@ -93,6 +94,58 @@ Outcome fly(const Run& run)
     return outcome;
 }
 
+// [SEN-BAR-325] Barometer runs at rest: pressure_of(t) is the pressure the host sends at time t (10 ms period).
+template <class PressureOf>
+std::vector<double> baro_heights(double baro_rate_hz, PressureOf pressure_of)
+{
+    Px4EkfAdapter ekf;
+    Px4SensorModelV2Config mount{};
+    mount.baro_rate_hz = baro_rate_hz;
+    ekf.set_sensor_model_v2_config(mount);
+    EkfAdapterConfig config{};
+    config.mag_declination_deg = 0.0;
+    ekf.set_config(config);
+    ekf.set_armed_status(false);
+    ekf.set_in_air_status(false);
+    ekf.set_vehicle_at_rest(true);
+    std::vector<double> heights;
+    for (int step = 1; step <= 20000; ++step) {
+        const std::uint64_t now = static_cast<std::uint64_t>(step) * 4000;
+        ekf.push_imu(EkfImuInput{now, 0.0, 0.0, -9.80665, 0.0, 0.0, 0.0}, 0.004);
+        if (step % 5 == 0) {
+            ekf.push_mag(EkfMagInput{now, 0.22, 0.0, 0.43});
+        }
+        if (step % 50 == 0) {
+            EkfHilGpsInput gps{};
+            gps.time_usec = now;
+            gps.fix_type = 3;
+            gps.lat_deg = kHomeLatDeg;
+            gps.lon_deg = kHomeLonDeg;
+            gps.alt_m = 40.0;
+            gps.satellites_visible = 16;
+            gps.eph_m = 0.5;
+            gps.epv_m = 0.8;
+            gps.sacc_mps = 0.2;
+            ekf.push_gps(gps);
+        }
+        if ((now % 10000) == 0) {
+            EkfBaroInput baro{};
+            baro.time_usec = now;
+            baro.pressure_pa = pressure_of(now / 1e6, step);
+            ekf.push_baro(baro);
+        }
+        ekf.update();
+        heights.push_back(-ekf.get_estimated_state().position_local_ned_m[2]);
+    }
+    return heights;
+}
+
+// International standard atmosphere below 11 km, independent of PX4's atmosphere library.
+double isa_pressure_pa(double height_m)
+{
+    return 101325.0 * std::pow(1.0 - 2.25577e-5 * height_m, 5.25588);
+}
+
 double tilt_from_level_deg(const EkfEstimatedState& state)
 {
     const auto& q = state.attitude_quaternion_wxyz;
@@ -166,6 +219,12 @@ int main()
     require(std::fabs(heading_deg(with_calibration) - heading_deg(reference)) < 0.5, "CAL_MAG0 did not reach EKF2");
     require(std::fabs(heading_deg(without_calibration) - heading_deg(reference)) > 1.5,
         "the compass bias case is too weak");
+    // [SEN-BAR-325] A 2 m pressure step (60 s at rest, then the pressure of 2 m) raises the height by about 2 m.
+    const auto step_heights = baro_heights(20.0, [](double t, int) { return isa_pressure_pa(t < 50.0 ? 0.0 : 2.0); });
+    const double before = step_heights[12000];  // 48 s
+    const double after = step_heights.back();  // 80 s
+    std::cout << "baro step: height " << before << " -> " << after << std::endl;
+    require(std::fabs((after - before) - 2.0) < 0.2, "the pressure step did not become a 2 m height step");
     std::cout << "px4_sensor_model_v2_ekf_smoke: PASS" << std::endl;
     return EXIT_SUCCESS;
 }

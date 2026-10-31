@@ -14,6 +14,9 @@ struct Px4SensorModelV2Config {
     std::array<double, 3> mag_offset_gauss{};
     std::array<double, 3> mag_scale{{1.0, 1.0, 1.0}};
     std::array<double, 3> mag_offdiagonal{};
+    // [SEN-BAR-325] PX4 sensors' VehicleAirData: QNH for the height, and how often the averaged pressure reaches EKF2.
+    double baro_qnh_hpa{1013.25};
+    double baro_rate_hz{20.0};
 };
 
 #ifdef HAKO_ENABLE_SENSOR_MODEL_V2

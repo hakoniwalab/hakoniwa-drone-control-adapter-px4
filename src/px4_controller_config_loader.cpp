@@ -223,6 +223,17 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
         sensor_parameter("CAL_MAG0_XODIAG", 0.0),
         sensor_parameter("CAL_MAG0_YODIAG", 0.0),
         sensor_parameter("CAL_MAG0_ZODIAG", 0.0)};
+    // [SEN-BAR-325] PX4's SENS_BARO_QNH (hPa, 500..1500) and SENS_BARO_RATE (Hz, 1..200).
+    sensor_model.baro_qnh_hpa = sensor_parameter("SENS_BARO_QNH", 1013.25);
+    sensor_model.baro_rate_hz = sensor_parameter("SENS_BARO_RATE", 20.0);
+    if (!std::isfinite(sensor_model.baro_qnh_hpa) || sensor_model.baro_qnh_hpa < 500.0
+        || sensor_model.baro_qnh_hpa > 1500.0) {
+        throw std::runtime_error("SENS_BARO_QNH must be 500..1500 hPa");
+    }
+    if (!std::isfinite(sensor_model.baro_rate_hz) || sensor_model.baro_rate_hz < 1.0
+        || sensor_model.baro_rate_hz > 200.0) {
+        throw std::runtime_error("SENS_BARO_RATE must be 1..200 Hz");
+    }
     config.rate_control.sensor_model_v2 = sensor_model;
 #endif
     // The rate stage on the previous cycle's rates setpoint, optional (off); standard PX4 behavior build only.
