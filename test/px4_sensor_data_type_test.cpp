@@ -35,6 +35,7 @@ void test_fifo_conversion()
     require(nearly_equal(out.ygyro_rad_s, px4_imu_fifo_gyro(input.ygyro_rad_s)), "gyro y not converted");
     require(nearly_equal(out.zgyro_rad_s, px4_imu_fifo_gyro(input.zgyro_rad_s)), "gyro z not converted");
 }
+// T-GPS-U1-080: what the PX4 adapter gives EKF2 (m, m/s, m, m/s), as HIL_GPS carries it to PX4 SITL.
 void test_gps_conversion()
 {
     EkfHilGpsInput in{};
