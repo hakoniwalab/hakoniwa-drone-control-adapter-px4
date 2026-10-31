@@ -105,6 +105,16 @@ int main()
         require_vector(rotate_sensor_to_body(config, sensor), body, "rotation did not recover body value");
     }
 
+    // T-ACC-U1-050 / T-MAG-U1-070: the values the adapter passes to EKF2 with SENS_BOARD_ROT = Yaw 90.
+    Px4SensorModelV2Config yaw90{};
+    yaw90.board_rotation = 2;
+    // The lever arm stays in the value; EKF2_IMU_POS lets EKF2 account for it.
+    require_vector(rotate_sensor_to_body(yaw90, {0.0, 1.3708, -9.81}), {-1.3708, 0.0, -9.81},
+        "T-ACC-U1-050: the accelerometer was not only turned to the body axes");
+    // 50,000 nT = 0.5 G, the unit of EKF2's magnetometer sample.
+    require_vector(correct_mag_sensor_to_body(yaw90, {0.0, -0.5, 0.0}), {0.5, 0.0, 0.0},
+        "T-MAG-U1-070: the magnetometer was not turned to the body axes");
+
     Px4SensorModelV2Config defaults{};
     require_vector(rotate_sensor_to_body(defaults, body), body, "missing parameters changed sensor value");
 
