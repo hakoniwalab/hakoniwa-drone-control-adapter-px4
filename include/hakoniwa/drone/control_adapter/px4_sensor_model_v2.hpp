@@ -14,6 +14,9 @@ struct Px4SensorModelV2Config {
     std::array<double, 3> mag_offset_gauss{};
     std::array<double, 3> mag_scale{{1.0, 1.0, 1.0}};
     std::array<double, 3> mag_offdiagonal{};
+    // [SEN-ACC-300] PX4's accelerometer calibration CAL_ACC0_*OFF (m/s^2) and CAL_ACC0_*SCALE, sensor axes.
+    std::array<double, 3> acc_offset_mps2{};
+    std::array<double, 3> acc_scale{{1.0, 1.0, 1.0}};
     // [SEN-BAR-325] PX4 sensors' VehicleAirData: QNH for the height, and how often the averaged pressure reaches EKF2.
     double baro_qnh_hpa{1013.25};
     double baro_rate_hz{20.0};
@@ -24,6 +27,9 @@ std::array<double, 3> rotate_sensor_to_body(
     const Px4SensorModelV2Config& config,
     const std::array<double, 3>& sensor_value);
 std::array<double, 3> correct_mag_sensor_to_body(
+    const Px4SensorModelV2Config& config,
+    const std::array<double, 3>& sensor_value);
+std::array<double, 3> correct_accel_sensor_to_body(
     const Px4SensorModelV2Config& config,
     const std::array<double, 3>& sensor_value);
 #endif

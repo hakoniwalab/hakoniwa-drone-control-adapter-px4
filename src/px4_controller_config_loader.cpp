@@ -223,6 +223,14 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
         sensor_parameter("CAL_MAG0_XODIAG", 0.0),
         sensor_parameter("CAL_MAG0_YODIAG", 0.0),
         sensor_parameter("CAL_MAG0_ZODIAG", 0.0)};
+    sensor_model.acc_offset_mps2 = {
+        sensor_parameter("CAL_ACC0_XOFF", 0.0),
+        sensor_parameter("CAL_ACC0_YOFF", 0.0),
+        sensor_parameter("CAL_ACC0_ZOFF", 0.0)};
+    sensor_model.acc_scale = {
+        sensor_parameter("CAL_ACC0_XSCALE", 1.0),
+        sensor_parameter("CAL_ACC0_YSCALE", 1.0),
+        sensor_parameter("CAL_ACC0_ZSCALE", 1.0)};
     // [SEN-BAR-325] PX4's SENS_BARO_QNH (hPa, 500..1500) and SENS_BARO_RATE (Hz, 1..200).
     sensor_model.baro_qnh_hpa = sensor_parameter("SENS_BARO_QNH", 1013.25);
     sensor_model.baro_rate_hz = sensor_parameter("SENS_BARO_RATE", 20.0);

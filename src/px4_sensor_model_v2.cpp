@@ -47,6 +47,19 @@ std::array<double, 3> correct_mag_sensor_to_body(
     return rotate_sensor_to_body(config, {corrected(0), corrected(1), corrected(2)});
 }
 
+std::array<double, 3> correct_accel_sensor_to_body(
+    const Px4SensorModelV2Config& config,
+    const std::array<double, 3>& sensor_value)
+{
+    // [SEN-ACC-300] Match PX4 Accelerometer::Correct(): rotation * ((data - offset) .* scale).
+    std::array<double, 3> corrected{};
+    for (int axis = 0; axis < 3; ++axis) {
+        corrected[axis] = static_cast<float>(sensor_value[axis] - config.acc_offset_mps2[axis])
+            * static_cast<float>(config.acc_scale[axis]);
+    }
+    return rotate_sensor_to_body(config, corrected);
+}
+
 }  // namespace hakoniwa::drone::control_adapter
 
 #endif

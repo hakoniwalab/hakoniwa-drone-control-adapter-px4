@@ -117,6 +117,14 @@ int main()
 
     Px4SensorModelV2Config defaults{};
     require_vector(rotate_sensor_to_body(defaults, body), body, "missing parameters changed sensor value");
+    require_vector(correct_accel_sensor_to_body(defaults, body), body, "missing CAL_ACC0_* changed the accelerometer");
+    // T-ACC-U1-040: the calibration made from fixedMg [20, -15, 40] and scaleErrorPct [1, -2, 0] takes Hakoniwa's
+    // output back to the specific force (2, 1, -9.81) through PX4's (value - offset) * scale.
+    Px4SensorModelV2Config calibrated{};
+    calibrated.acc_offset_mps2 = {0.196133, -0.147100, 0.392266};
+    calibrated.acc_scale = {0.990099, 1.020408, 1.0};
+    require_vector(correct_accel_sensor_to_body(calibrated, {2.216133, 0.832900, -9.417734}), {2.0, 1.0, -9.81},
+        "T-ACC-U1-040: CAL_ACC0_* did not take the output back to the specific force");
 
     std::ifstream file("../config/px4-controller-config.sample.json");
     std::ostringstream text;
@@ -129,9 +137,13 @@ int main()
         R"("CAL_MAG0_XOFF":0.1,"CAL_MAG0_YOFF":-0.2,"CAL_MAG0_ZOFF":0.3,)"
         R"("CAL_MAG0_XSCALE":2,"CAL_MAG0_YSCALE":3,"CAL_MAG0_ZSCALE":4,)"
         R"("CAL_MAG0_XODIAG":0.5,"CAL_MAG0_YODIAG":-0.25,"CAL_MAG0_ZODIAG":0.75,)"
+        R"("CAL_ACC0_XOFF":0.196133,"CAL_ACC0_YOFF":-0.1471,"CAL_ACC0_ZOFF":0.392266,)"
+        R"("CAL_ACC0_XSCALE":0.990099,"CAL_ACC0_YSCALE":1.020408,"CAL_ACC0_ZSCALE":1,)"
     );
     const Px4ControllerConfig loaded = Px4ControllerConfigLoader{}.load_from_text(config_text);
     require(loaded.sensor_model_v2.board_rotation == 2, "SENS_BOARD_ROT was not loaded");
+    require_vector(loaded.sensor_model_v2.acc_offset_mps2, {0.196133, -0.1471, 0.392266}, "CAL_ACC0_*OFF was not loaded");
+    require_vector(loaded.sensor_model_v2.acc_scale, {0.990099, 1.020408, 1.0}, "CAL_ACC0_*SCALE was not loaded");
     require(loaded.rate_control.sensor_model_v2.board_rotation == 2, "rate config did not receive rotation");
 
     const auto require_invalid_board_rotation = [&text](const char* value) {
