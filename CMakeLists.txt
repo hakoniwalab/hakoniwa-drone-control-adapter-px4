@@ -577,4 +577,10 @@ if(HAKO_ENABLE_SENSOR_MODEL_V2)
     add_test(NAME px4_sensor_model_v2_smoke COMMAND px4_sensor_model_v2_smoke)
     set_tests_properties(px4_sensor_model_v2_smoke PROPERTIES
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test)
+
+    add_executable(px4_sensor_model_v2_ekf_smoke
+        test/px4_sensor_model_v2_ekf_smoke.cpp)
+    target_link_libraries(px4_sensor_model_v2_ekf_smoke PRIVATE
+        hakoniwa_drone_control_adapter_px4)
+    add_test(NAME px4_sensor_model_v2_ekf_smoke COMMAND px4_sensor_model_v2_ekf_smoke)
 endif()
