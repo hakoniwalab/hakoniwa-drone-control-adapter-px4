@@ -5,7 +5,7 @@ project(hakoniwa_drone_control_adapter_px4 LANGUAGES CXX)
 option(HAKO_ENABLE_GOTO_SPEED_LIMIT
     "Enable per-command goto horizontal speed limits" OFF)
 option(HAKO_ENABLE_SENSOR_MODEL_V2
-    "Enable PX4 sensor mounting rotation and position parameters" OFF)
+    "PX4 sensor mounting rotation and position parameters (sensor model v2; ON from Drone PRO v5.0.0, OFF only for legacy comparisons)" ON)
 
 # Default to an optimized build. Without a build type the PX4 EKF and
 # controllers were compiled without optimization, which slowed every
