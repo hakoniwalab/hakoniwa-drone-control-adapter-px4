@@ -41,6 +41,16 @@ struct Px4RateControlFeedForward {
 struct Px4ImuFilterConfig {
     double gyro_cutoff_hz{40.0};
     double dgyro_cutoff_hz{20.0};
+#ifdef HAKO_ENABLE_GYRO_SAMPLE_INPUT
+    double gyro_notch0_frequency_hz{0.0};
+    double gyro_notch0_bandwidth_hz{20.0};
+    double gyro_notch1_frequency_hz{0.0};
+    double gyro_notch1_bandwidth_hz{20.0};
+    int dynamic_notch_enable{0};
+    int dynamic_notch_harmonics{3};
+    double dynamic_notch_bandwidth_hz{15.0};
+    double dynamic_notch_min_frequency_hz{25.0};
+#endif
 };
 
 struct Px4RateControlBackendConfig {

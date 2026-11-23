@@ -186,6 +186,20 @@ Px4ControllerConfig Px4ControllerConfigLoader::load_from_text(const std::string&
     if (has_key(text, "IMU_GYRO_CUTOFF")) {
         config.rate_control.imu_filters.gyro_cutoff_hz = extract_number(text, "IMU_GYRO_CUTOFF");
     }
+#ifdef HAKO_ENABLE_GYRO_SAMPLE_INPUT
+    const auto optional_imu_parameter = [&text](const char* key, double default_value) {
+        return has_key(text, key) ? extract_number(text, key) : default_value;
+    };
+    auto& imu_filters = config.rate_control.imu_filters;
+    imu_filters.gyro_notch0_frequency_hz = optional_imu_parameter("IMU_GYRO_NF0_FRQ", 0.0);
+    imu_filters.gyro_notch0_bandwidth_hz = optional_imu_parameter("IMU_GYRO_NF0_BW", 20.0);
+    imu_filters.gyro_notch1_frequency_hz = optional_imu_parameter("IMU_GYRO_NF1_FRQ", 0.0);
+    imu_filters.gyro_notch1_bandwidth_hz = optional_imu_parameter("IMU_GYRO_NF1_BW", 20.0);
+    imu_filters.dynamic_notch_enable = static_cast<int>(optional_imu_parameter("IMU_GYRO_DNF_EN", 0.0));
+    imu_filters.dynamic_notch_harmonics = static_cast<int>(optional_imu_parameter("IMU_GYRO_DNF_HMC", 3.0));
+    imu_filters.dynamic_notch_bandwidth_hz = optional_imu_parameter("IMU_GYRO_DNF_BW", 15.0);
+    imu_filters.dynamic_notch_min_frequency_hz = optional_imu_parameter("IMU_GYRO_DNF_MIN", 25.0);
+#endif
     config.sensor_data_types = extract_sensor_data_types(text);
     config.rate_control.imu_data_type = config.sensor_data_types.imu;
 #ifdef HAKO_ENABLE_SENSOR_MODEL_V2

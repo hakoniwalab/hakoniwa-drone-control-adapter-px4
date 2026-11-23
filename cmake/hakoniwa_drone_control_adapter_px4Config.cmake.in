@@ -1,5 +1,7 @@
 @PACKAGE_INIT@
 
 set(hakoniwa_drone_control_adapter_px4_GOTO_SPEED_LIMIT @HAKO_ENABLE_GOTO_SPEED_LIMIT@)
+set(hakoniwa_drone_control_adapter_px4_SENSOR_MODEL_V2 @HAKO_ENABLE_SENSOR_MODEL_V2@)
+set(hakoniwa_drone_control_adapter_px4_GYRO_SAMPLE_INPUT @HAKO_ENABLE_GYRO_SAMPLE_INPUT@)
 
 include("${CMAKE_CURRENT_LIST_DIR}/hakoniwa_drone_control_adapter_px4Targets.cmake")
