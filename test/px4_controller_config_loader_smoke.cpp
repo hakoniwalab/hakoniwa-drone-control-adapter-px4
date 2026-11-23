@@ -120,6 +120,18 @@ int main()
         "missing IMU_GYRO_CUTOFF must keep PX4 default 40 Hz");
     require(nearly_equal(config.rate_control.imu_filters.dgyro_cutoff_hz, 20.0),
         "missing IMU_DGYRO_CUTOFF must keep PX4 default 20 Hz");
+#ifdef HAKO_ENABLE_GYRO_SAMPLE_INPUT
+    require(nearly_equal(config.rate_control.imu_filters.gyro_notch0_frequency_hz, 0.0)
+            && nearly_equal(config.rate_control.imu_filters.gyro_notch0_bandwidth_hz, 20.0)
+            && nearly_equal(config.rate_control.imu_filters.gyro_notch1_frequency_hz, 0.0)
+            && nearly_equal(config.rate_control.imu_filters.gyro_notch1_bandwidth_hz, 20.0),
+        "missing static-notch parameters must keep PX4 v1.16 defaults");
+    require(config.rate_control.imu_filters.dynamic_notch_enable == 0
+            && config.rate_control.imu_filters.dynamic_notch_harmonics == 3
+            && nearly_equal(config.rate_control.imu_filters.dynamic_notch_bandwidth_hz, 15.0)
+            && nearly_equal(config.rate_control.imu_filters.dynamic_notch_min_frequency_hz, 25.0),
+        "missing dynamic-notch parameters must keep PX4 v1.16 defaults");
+#endif
     require(nearly_equal(config.rate_control.yaw_torque_cutoff_hz, 0.0),
         "missing MC_YAW_TQ_CUTOFF must keep legacy filtering disabled");
     require(nearly_equal(config.altitude_control.velocity_filter.velocity_cutoff_hz, 0.0),
@@ -227,6 +239,12 @@ int main()
     auto explicit_filters = sample_config_text();
     replace_once(explicit_filters, root_marker,
         "{\n  \"IMU_GYRO_CUTOFF\": 31.0,\n  \"IMU_DGYRO_CUTOFF\": 17.0,\n"
+#ifdef HAKO_ENABLE_GYRO_SAMPLE_INPUT
+        "  \"IMU_GYRO_NF0_FRQ\": 71.0,\n  \"IMU_GYRO_NF0_BW\": 18.0,\n"
+        "  \"IMU_GYRO_NF1_FRQ\": 121.0,\n  \"IMU_GYRO_NF1_BW\": 22.0,\n"
+        "  \"IMU_GYRO_DNF_EN\": 1,\n  \"IMU_GYRO_DNF_HMC\": 4,\n"
+        "  \"IMU_GYRO_DNF_BW\": 16.0,\n  \"IMU_GYRO_DNF_MIN\": 27.0,\n"
+#endif
         "  \"MC_YAW_TQ_CUTOFF\": 2.0,\n"
         "  \"MPC_VEL_LP\": 4.0,\n  \"MPC_VELD_LP\": 8.0,\n");
     const auto filter_config = loader.load_from_text(explicit_filters);
@@ -234,6 +252,18 @@ int main()
         "explicit IMU_GYRO_CUTOFF must be loaded");
     require(nearly_equal(filter_config.rate_control.imu_filters.dgyro_cutoff_hz, 17.0),
         "explicit IMU_DGYRO_CUTOFF must be loaded");
+#ifdef HAKO_ENABLE_GYRO_SAMPLE_INPUT
+    require(nearly_equal(filter_config.rate_control.imu_filters.gyro_notch0_frequency_hz, 71.0)
+            && nearly_equal(filter_config.rate_control.imu_filters.gyro_notch0_bandwidth_hz, 18.0)
+            && nearly_equal(filter_config.rate_control.imu_filters.gyro_notch1_frequency_hz, 121.0)
+            && nearly_equal(filter_config.rate_control.imu_filters.gyro_notch1_bandwidth_hz, 22.0),
+        "explicit static-notch parameters must be loaded");
+    require(filter_config.rate_control.imu_filters.dynamic_notch_enable == 1
+            && filter_config.rate_control.imu_filters.dynamic_notch_harmonics == 4
+            && nearly_equal(filter_config.rate_control.imu_filters.dynamic_notch_bandwidth_hz, 16.0)
+            && nearly_equal(filter_config.rate_control.imu_filters.dynamic_notch_min_frequency_hz, 27.0),
+        "explicit dynamic-notch parameters must be loaded");
+#endif
     require(nearly_equal(filter_config.rate_control.yaw_torque_cutoff_hz, 2.0),
         "explicit MC_YAW_TQ_CUTOFF must be loaded");
     require(nearly_equal(filter_config.altitude_control.velocity_filter.velocity_cutoff_hz, 4.0),

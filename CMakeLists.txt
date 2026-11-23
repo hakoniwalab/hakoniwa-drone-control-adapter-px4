@@ -6,6 +6,8 @@ option(HAKO_ENABLE_GOTO_SPEED_LIMIT
     "Enable per-command goto horizontal speed limits" OFF)
 option(HAKO_ENABLE_SENSOR_MODEL_V2
     "Enable PX4 sensor mounting rotation and position parameters" OFF)
+option(HAKO_ENABLE_GYRO_SAMPLE_INPUT
+    "Enable timestamped gyro samples and rotor-speed notch filtering" OFF)
 
 # Default to an optimized build. Without a build type the PX4 EKF and
 # controllers were compiled without optimization, which slowed every
@@ -100,6 +102,11 @@ if(HAKO_ENABLE_SENSOR_MODEL_V2)
         PRIVATE __EXPORT=)
     target_sources(hakoniwa_drone_control_adapter_px4 PRIVATE
         ${PX4_ROOT}/src/lib/conversion/rotation.cpp)
+endif()
+
+if(HAKO_ENABLE_GYRO_SAMPLE_INPUT)
+    target_compile_definitions(hakoniwa_drone_control_adapter_px4
+        PUBLIC HAKO_ENABLE_GYRO_SAMPLE_INPUT)
 endif()
 
 set_target_properties(hakoniwa_drone_control_adapter_px4 PROPERTIES
@@ -215,6 +222,19 @@ add_test(
     NAME px4_rate_control_backend_smoke
     COMMAND px4_rate_control_backend_smoke
 )
+
+if(HAKO_ENABLE_GYRO_SAMPLE_INPUT)
+    add_executable(px4_gyro_sample_input_smoke
+        test/px4_gyro_sample_input_smoke.cpp
+    )
+    target_link_libraries(px4_gyro_sample_input_smoke
+        PRIVATE hakoniwa_drone_control_adapter_px4)
+    target_include_directories(px4_gyro_sample_input_smoke PRIVATE
+        ${PX4_ROOT}/src
+        ${PX4_ROOT}/src/lib
+        ${PX4_ROOT}/src/lib/matrix)
+    add_test(NAME px4_gyro_sample_input_smoke COMMAND px4_gyro_sample_input_smoke)
+endif()
 
 add_executable(px4_attitude_control_backend_smoke
     test/px4_attitude_control_backend_smoke.cpp
